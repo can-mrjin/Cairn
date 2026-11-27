@@ -1,24 +1,18 @@
-import SwiftUI
+import AppKit
 
+/// Pure AppKit entry point. Avoids SwiftUI's implicit `Settings { EmptyView() }`
+/// scene, which macOS can materialize as a blank "Cairn Settings" window on
+/// launch, reopen, or state restoration.
 @main
-struct CodeIslandApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @ObservedObject private var l10n = L10n.shared
+@MainActor
+enum CodeIslandApp {
+    private static var delegate: AppDelegate?
 
-    var body: some Scene {
-        Settings {
-            EmptyView()
-        }
-        .commands {
-            // The real settings are SettingsWindowController's window. While it
-            // is open the app is a regular app with a menu bar, and the generated
-            // "Settings…" (⌘,) would open this empty scene as a blank window.
-            CommandGroup(replacing: .appSettings) {
-                Button(l10n["settings_ellipsis"]) {
-                    SettingsWindowController.shared.show()
-                }
-                .keyboardShortcut(",", modifiers: .command)
-            }
-        }
+    static func main() {
+        let app = NSApplication.shared
+        let appDelegate = AppDelegate()
+        delegate = appDelegate
+        app.delegate = appDelegate
+        app.run()
     }
 }

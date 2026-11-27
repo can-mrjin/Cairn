@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.png" width="88" height="88" alt="Cairn Logo" />
+<img src="docs/assets/logo.png" width="88" height="88" alt="Cairn Logo" />
 
 # Cairn
 
@@ -46,11 +46,11 @@ swift build
 To build a standalone `.app` bundle:
 
 ```bash
-./build.sh
+./scripts/build.sh
 ```
 
 ## License & Acknowledgements
 
 Released under the [GNU General Public License v3.0](LICENSE) (`GPL-3.0`). Any redistributed modifications or derivative works must also be released under GPL-3.0.
 
-Built upon [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland) (original MIT copyright notice preserved in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)) — thanks to `@wxtsky` and all contributors for the original foundation and hook ecosystem.
+Built upon [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland) (original MIT copyright notice preserved in [docs/THIRD_PARTY_LICENSES.md](docs/THIRD_PARTY_LICENSES.md)) — thanks to `@wxtsky` and all contributors for the original foundation and hook ecosystem.

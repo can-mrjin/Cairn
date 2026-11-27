@@ -66,10 +66,10 @@ case "$BUILD_ARCH" in
 esac
 chmod +x "$CONTENTS_DIR/MacOS/Cairn" "$CONTENTS_DIR/Helpers/codeisland-bridge"
 
-# Write Info.plist (use the root Info.plist as base, update version)
-CURRENT_VER=$(defaults read "$REPO_ROOT/Info.plist" CFBundleShortVersionString)
+# Write Info.plist (use Resources/Info.plist as base, update version)
+CURRENT_VER=$(defaults read "$REPO_ROOT/Resources/Info.plist" CFBundleShortVersionString)
 sed -e "s/<string>${CURRENT_VER}<\/string>/<string>${VERSION}<\/string>/g" \
-    "$REPO_ROOT/Info.plist" > "$CONTENTS_DIR/Info.plist"
+    "$REPO_ROOT/Resources/Info.plist" > "$CONTENTS_DIR/Info.plist"
 
 # Compile app icon and asset catalog
 xcrun actool \
@@ -81,8 +81,8 @@ xcrun actool \
     --app-icon AppIcon \
     --output-partial-info-plist /dev/null \
     --compile "$CONTENTS_DIR/Resources" \
-    "$REPO_ROOT/Assets.xcassets" \
-    "$REPO_ROOT/AppIcon.icon"
+    "$REPO_ROOT/Resources/Assets.xcassets" \
+    "$REPO_ROOT/Resources/AppIcon.icon"
 
 # Finder still relies on CFBundleIconFile/AppIcon.icns for some copied or
 # unsigned bundles. Keep a checked-in fallback so CI artifacts do not regress to
@@ -175,7 +175,7 @@ adhoc_sign_app_for_local_permissions() {
     done
 
     codesign --force --options runtime \
-        --entitlements "$REPO_ROOT/CodeIsland.entitlements" \
+        --entitlements "$REPO_ROOT/Resources/CodeIsland.entitlements" \
         --sign - \
         "$APP_DIR"
 }
@@ -215,7 +215,7 @@ elif [ -n "${SIGN_IDENTITY:-}" ] && security find-identity -v -p codesigning | g
     # Finally, sign the main bundle. Entitlements only on the top-level app —
     # Sparkle components have their own entitlements baked into their signatures.
     codesign --force --options runtime --timestamp \
-        --entitlements "$REPO_ROOT/CodeIsland.entitlements" \
+        --entitlements "$REPO_ROOT/Resources/CodeIsland.entitlements" \
         --sign "$SIGN_IDENTITY" \
         "$APP_DIR"
 

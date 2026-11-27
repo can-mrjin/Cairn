@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
 # Ensure Xcode.app toolchain is used even if xcode-select points at CLT
 if [ -d /Applications/Xcode.app/Contents/Developer ]; then
     export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
@@ -10,15 +13,15 @@ APP_NAME="Cairn"
 EXECUTABLE_TARGET="CodeIsland"
 BUILD_DIR=".build/release"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
-ICON_CATALOG="Assets.xcassets"
-ICON_SOURCE="AppIcon.icon"
+ICON_CATALOG="Resources/Assets.xcassets"
+ICON_SOURCE="Resources/AppIcon.icon"
 ICON_INFO_PLIST=".build/AppIcon.partial.plist"
 
 NOTARIZE=false
 
 usage() {
     cat <<'EOF'
-Usage: ./build.sh [--notarize]
+Usage: ./scripts/build.sh [--notarize]
 
   --notarize    Notarize macOS app bundle / DMG after signing
   --help        Show this help
@@ -56,7 +59,7 @@ build_mac() {
 
     cp "$ARM_DIR/$EXECUTABLE_TARGET" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
     cp "$ARM_DIR/codeisland-bridge" "$APP_BUNDLE/Contents/Helpers/codeisland-bridge"
-    cp Info.plist "$APP_BUNDLE/Contents/Info.plist"
+    cp Resources/Info.plist "$APP_BUNDLE/Contents/Info.plist"
 
     echo "Embedding frameworks..."
     # Sparkle.xcframework macos-arm64_x86_64 slice is already universal; copy as-is to preserve symlinks.
@@ -92,7 +95,7 @@ build_mac() {
     # Copy the SPM resource bundle into Contents/Resources/ (required for code signing)
     cp -R "$ARM_DIR/CodeIsland_CodeIsland.bundle" "$APP_BUNDLE/Contents/Resources/"
 
-    ENTITLEMENTS="CodeIsland.entitlements"
+    ENTITLEMENTS="Resources/CodeIsland.entitlements"
 
     # Use SIGN_ID env var, or auto-detect: prefer "Developer ID Application" for distribution,
     # fall back to any valid identity, then ad-hoc

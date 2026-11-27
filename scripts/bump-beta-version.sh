@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Increments the beta prerelease suffix in Info.plist:
+# Increments the beta prerelease suffix in Resources/Info.plist:
 #   1.2.1-beta.1 -> 1.2.1-beta.2
 #   1.2.0        -> 1.2.1-beta.1
 #
 # Usage: ./scripts/bump-beta-version.sh [explicit-version]
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PLIST="$REPO_ROOT/Info.plist"
+PLIST="$REPO_ROOT/Resources/Info.plist"
 
 CURRENT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
 NEXT="${1:-}"

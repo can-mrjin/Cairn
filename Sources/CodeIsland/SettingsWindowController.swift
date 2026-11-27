@@ -52,6 +52,7 @@ class SettingsWindowController {
         window.contentMinSize = NSSize(width: min(640, screenW * 0.45), height: min(480, screenH * 0.5))
         window.toolbar = nil
         window.center()
+        window.isRestorable = false
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
