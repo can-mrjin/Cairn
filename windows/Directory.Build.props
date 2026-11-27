@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <LangVersion>12</LangVersion>
+    <Version>1.2.1</Version>
+    <Authors>Cairn Contributors</Authors>
+    <RepositoryUrl>https://github.com/can-mrjin/Cairn</RepositoryUrl>
+  </PropertyGroup>
+</Project>

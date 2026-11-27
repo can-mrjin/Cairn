@@ -4,6 +4,18 @@ All notable changes to Cairn are documented in this file.
 
 Cairn is built on the MIT-licensed foundation of [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland).
 
+## [v1.2.1] - 2026-11-27
+
+### English
+- **Task Checklists & Fork Branch Trees**: Non-clickable task progress with 3 selectable styles in **Settings → Appearance**, reliable Claude Desktop `update_plan` / `wrap_up` and Antigravity `update_steps` tracking, collapsible Claude Desktop `(fork)` / `btw:` branch trees, and hidden dim grey dots on idle/read cards.
+- **Adaptive Height & Pure AppKit Entry**: Expanded panel height now adapts up to 85% of screen height; removed the blank SwiftUI Settings window on macOS.
+- **Updates & Windows Alignment**: Added Sparkle auto-download with Beta channel toggle on macOS, aligned **Cairn for Windows** (`windows/`) with Antigravity protocol support and GitHub Releases update checking, and unified repository links under `can-mrjin/Cairn`.
+
+### 中文
+- **任务清单与分支树折叠**：任务进度条改为不可点击并在「设置 → 外观」提供3种样式，完善Claude Desktop与Antigravity任务清单跟踪，支持折叠Claude Desktop `(fork)` / `btw:`分支树，并隐藏空闲/已读卡片上的暗灰点。
+- **自适应展开高度与窗口清理**：展开面板高度最高自适应至屏幕高度85%，并彻底移除macOS空白SwiftUI设置窗口。
+- **更新通道与Windows对齐**：macOS新增Sparkle自动下载与Beta通道开关；对齐**Cairn for Windows**（支持Antigravity协议与GitHub Releases更新检查），并统一仓库链接至`can-mrjin/Cairn`。
+
 ## [v1.2.0] - 2026-11-27
 
 ### English

@@ -188,6 +188,9 @@ public struct SessionSnapshot: Sendable {
     /// CLAUDE_CODE_HOST_SESSION_ID) — what its `claude://code/continue` link
     /// takes to open that exact session instead of just raising the app.
     public var claudeDesktopSessionId: String?
+    /// Parent Claude Desktop host session id (`local_…`) when this conversation
+    /// was forked from another conversation (`(fork)` / `btw:` side-chats).
+    public var forkedFromHostSessionId: String?
     public var cliPid: pid_t?            // CLI process PID (from bridge _ppid); this Mac's sessions only
     public var cliStartTime: Date?       // Start time of the tracked CLI PID (guards PID reuse)
     /// A remote session's agent process id on its own host (its hooks'

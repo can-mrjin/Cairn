@@ -72,6 +72,36 @@ final class ClaudeDesktopCodeSessionTests: XCTestCase {
         )
     }
 
+    func testRecentSessionMetadataIndexCapturesForkedFromSessionId() throws {
+        let tempHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-code-fork-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempHome) }
+
+        let orgDir = tempHome.appendingPathComponent(
+            "Library/Application Support/Claude-3p/claude-code-sessions/acct/org",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: orgDir, withIntermediateDirectories: true)
+
+        let parentHost = "local_69a92321-31d0-4fc4-9a5a-fdd090c3fc64"
+        let parentCli = "ee4fffe0-25df-4130-b1da-82d294c7c5a6"
+        let forkHost = "local_c62147ff-cf30-458b-b1c0-2672fbcca556"
+        let forkCli = "4e9cb8c1-9b8f-4a21-8b13-fef81ac70c3a"
+        let forkPrior = "c62147ff-cf30-458b-b1c0-2672fbcca556"
+
+        try Data("""
+        {"sessionId":"\(parentHost)","cliSessionId":"\(parentCli)","title":"Main chat"}
+        """.utf8).write(to: orgDir.appendingPathComponent("\(parentHost).json"))
+        try Data("""
+        {"sessionId":"\(forkHost)","cliSessionId":"\(forkCli)","priorCliSessionIds":["\(forkPrior)"],"forkedFromSessionId":"\(parentHost)","title":"Main chat (fork)"}
+        """.utf8).write(to: orgDir.appendingPathComponent("\(forkHost).json"))
+
+        let index = ClaudeDesktopCodeSession.recentSessionMetadataIndex(home: tempHome)
+        XCTAssertEqual(index[parentCli], .init(hostSessionId: parentHost, forkedFromHostSessionId: nil))
+        XCTAssertEqual(index[forkCli], .init(hostSessionId: forkHost, forkedFromHostSessionId: parentHost))
+        XCTAssertEqual(index[forkPrior], .init(hostSessionId: forkHost, forkedFromHostSessionId: parentHost))
+    }
+
     func testHostIdIsCapturedFromTheHookPayload() throws {
         var sessions: [String: SessionSnapshot] = ["s": SessionSnapshot()]
         extractMetadata(into: &sessions, sessionId: "s", event: try makeEvent(["_claude_desktop_session": hostId]))

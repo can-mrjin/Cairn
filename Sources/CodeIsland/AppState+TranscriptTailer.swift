@@ -23,6 +23,9 @@ extension AppState {
     func attachTranscriptTailerIfNeeded(sessionId: String) {
         guard let session = sessions[sessionId], !session.isRemote,
               let path = session.transcriptPath, !path.isEmpty else { return }
+        if SessionSnapshot.normalizedSupportedSource(session.source) == "claude" {
+            refreshClaudeDesktopForkMetadataIfNeeded()
+        }
         if attachedTranscriptPaths[sessionId] == path { return }
         attachedTranscriptPaths[sessionId] = path
 

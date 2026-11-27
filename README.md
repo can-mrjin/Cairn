@@ -8,7 +8,7 @@
 
 Monitor live agent states, inspect subagent & fork trees, track task checklists, approve tool calls, and answer questions — without leaving your current window.
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [Releases](https://github.com/can-mrjin/Cairn/releases) · [Windows Client](https://github.com/can-mrjin/Cairn/blob/beta/windows/README.md) · [Changelog](CHANGELOG.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [Releases](https://github.com/can-mrjin/Cairn/releases) · [Windows Client](windows/README.md) · [Changelog](CHANGELOG.md)
 
 <br />
 
@@ -82,14 +82,14 @@ Cairn ships with pixel-art mascots and local hook / transcript integrations for 
 
 ## Windows Client (`Cairn for Windows`)
 
-Cairn also includes a native WPF client for **Windows 10 / 11 (x64)** in [`windows/`](https://github.com/can-mrjin/Cairn/blob/beta/windows/README.md), featuring edge docking across multiple monitors, global shortcuts, Codex Desktop thread jumping, Antigravity event normalization, and GitHub Releases update checking (with Beta channel support).
+Cairn also includes a native WPF client for **Windows 10 / 11 (x64)** in [`windows/`](windows/README.md), featuring edge docking across multiple monitors, global shortcuts, Codex Desktop thread jumping, Antigravity event normalization, and GitHub Releases update checking (with Beta channel support).
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/can-mrjin/Cairn/beta/windows/docs/images/big.png" width="680" alt="Cairn for Windows Expanded Panel" /><br />
-  <img src="https://raw.githubusercontent.com/can-mrjin/Cairn/beta/windows/docs/images/small.png" width="320" alt="Cairn for Windows Collapsed Strip" />
+  <img src="windows/docs/images/big.png" width="680" alt="Cairn for Windows Expanded Panel" /><br />
+  <img src="windows/docs/images/small.png" width="320" alt="Cairn for Windows Collapsed Strip" />
 </div>
 
-See [windows/README.md](https://github.com/can-mrjin/Cairn/blob/beta/windows/README.md) for Windows installation, shortcuts, and build instructions.
+See [windows/README.md](windows/README.md) for Windows installation, shortcuts, and build instructions.
 
 ---
 
@@ -123,7 +123,7 @@ To build a standalone `.app` bundle:
 
 ### Windows
 
-Download `Cairn-Windows-<version>-win-x64.zip` from [GitHub Releases](https://github.com/can-mrjin/Cairn/releases) or the `cairn-windows` GitHub Actions artifact (requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)). Full guide in [windows/README.md](https://github.com/can-mrjin/Cairn/blob/beta/windows/README.md).
+Download `Cairn-Windows-<version>-win-x64.zip` from [GitHub Releases](https://github.com/can-mrjin/Cairn/releases) or the `cairn-windows` GitHub Actions artifact (requires [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)). Full guide in [windows/README.md](windows/README.md).
 
 ---
 

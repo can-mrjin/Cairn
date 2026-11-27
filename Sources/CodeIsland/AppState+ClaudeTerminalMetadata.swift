@@ -60,4 +60,80 @@ extension AppState {
         return ProcArgsParser.completeEnvironment(Array(buffer.prefix(size)),
             keys: ["TERM_PROGRAM", "__CFBundleIdentifier", "TMUX", "TMUX_PANE"])
     }
+
+    /// Backfill `claudeDesktopSessionId` and `forkedFromHostSessionId` for local
+    /// Claude sessions from Claude Desktop's `claude-code-sessions` metadata off
+    /// the main actor so forked `(fork)` and `btw:` conversations nest cleanly
+    /// under their parent conversation in the session list.
+    func refreshClaudeDesktopForkMetadataIfNeeded(force: Bool = false) {
+        guard !RuntimeEnvironment.isRunningTests, !RuntimeEnvironment.isIsolated else { return }
+        guard !claudeDesktopForkScanInFlight else { return }
+
+        let candidates: [String] = sessions.compactMap { id, session in
+            guard !session.isRemote,
+                  SessionSnapshot.normalizedSupportedSource(session.source) == "claude" else { return nil }
+            if force { return id }
+            if session.claudeDesktopSessionId == nil || !claudeDesktopForkProbedSessionIds.contains(id) {
+                return id
+            }
+            return nil
+        }
+        guard !candidates.isEmpty else { return }
+
+        let now = Date()
+        guard force || now.timeIntervalSince(lastClaudeDesktopForkScanAt) >= 3.0 else { return }
+        lastClaudeDesktopForkScanAt = now
+        claudeDesktopForkScanInFlight = true
+
+        Task.detached(priority: .utility) { [weak self] in
+            let index = ClaudeDesktopCodeSession.recentSessionMetadataIndex()
+            await self?.applyClaudeDesktopForkMetadataIndex(index, probedIds: candidates)
+        }
+    }
+
+    private func applyClaudeDesktopForkMetadataIndex(
+        _ index: [String: ClaudeDesktopCodeSession.HostSessionMetadata],
+        probedIds: [String]
+    ) {
+        claudeDesktopForkScanInFlight = false
+        var changed = false
+        for id in probedIds {
+            guard var session = sessions[id], !session.isRemote else { continue }
+            claudeDesktopForkProbedSessionIds.insert(id)
+
+            var lookupKeys: [String] = []
+            if let hostId = session.claudeDesktopSessionId, !hostId.isEmpty {
+                lookupKeys.append(hostId)
+            }
+            if let providerId = session.providerSessionId, !providerId.isEmpty {
+                lookupKeys.append(providerId)
+            }
+            lookupKeys.append(id)
+            if let transcriptPath = session.transcriptPath, !transcriptPath.isEmpty {
+                let stem = URL(fileURLWithPath: transcriptPath).deletingPathExtension().lastPathComponent
+                if !stem.isEmpty {
+                    lookupKeys.append(stem)
+                }
+            }
+
+            guard let meta = lookupKeys.lazy.compactMap({ index[$0] }).first else { continue }
+            var sessionChanged = false
+            if session.claudeDesktopSessionId != meta.hostSessionId {
+                session.claudeDesktopSessionId = meta.hostSessionId
+                sessionChanged = true
+            }
+            if let parentHost = meta.forkedFromHostSessionId,
+               session.forkedFromHostSessionId != parentHost {
+                session.forkedFromHostSessionId = parentHost
+                sessionChanged = true
+            }
+            if sessionChanged {
+                sessions[id] = session
+                changed = true
+            }
+        }
+        if changed {
+            scheduleSave()
+        }
+    }
 }

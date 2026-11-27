@@ -52,6 +52,8 @@ struct PersistedSession: Codable {
     /// Claude Desktop Code-tab session id, so a restored card still opens its
     /// exact session. Defaulted like the fields above for older files.
     var claudeDesktopSessionId: String? = nil
+    /// Parent Claude Desktop host session id when this conversation is a fork.
+    var forkedFromHostSessionId: String? = nil
     /// A Hermes gateway chat (see `SessionSnapshot.hermesChatElsewhere`): its
     /// restored card is bound to the gateway daemon again and must still be
     /// swept like a hook-only one. nil = false, as in older files.
@@ -156,6 +158,7 @@ enum SessionPersistence {
                 recap: s.recap,
                 reasoningEffort: s.reasoningEffort,
                 claudeDesktopSessionId: s.claudeDesktopSessionId,
+                forkedFromHostSessionId: s.forkedFromHostSessionId,
                 hermesChatElsewhere: s.hermesChatElsewhere ? true : nil,
                 parentSessionId: s.parentSessionId
             )

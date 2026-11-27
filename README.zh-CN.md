@@ -8,7 +8,7 @@
 
 实时查看各 Agent 运行状态、折叠查看子 Agent 与分支树、跟踪任务清单进度，并直接在面板内完成工具审批与问题回复，无需频繁切回终端或编辑器。
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [下载 Releases](https://github.com/can-mrjin/Cairn/releases) · [Windows 版文档](https://github.com/can-mrjin/Cairn/blob/beta/windows/README.zh-CN.md) · [更新日志](CHANGELOG.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [下载 Releases](https://github.com/can-mrjin/Cairn/releases) · [Windows 版文档](windows/README.zh-CN.md) · [更新日志](CHANGELOG.md)
 
 <br />
 
@@ -82,14 +82,14 @@
 
 ## Windows 客户端（`Cairn for Windows`）
 
-仓库 [`windows/`](https://github.com/can-mrjin/Cairn/blob/beta/windows/README.zh-CN.md) 目录同时提供原生 **Windows 10 / 11 (x64)** WPF 客户端，支持多显示器四边贴靠、全局快捷键、Codex Desktop 线程跳转、Antigravity 事件标准化以及 GitHub Releases 更新检查（含 Beta 通道开关）。
+仓库 [`windows/`](windows/README.zh-CN.md) 目录同时提供原生 **Windows 10 / 11 (x64)** WPF 客户端，支持多显示器四边贴靠、全局快捷键、Codex Desktop 线程跳转、Antigravity 事件标准化以及 GitHub Releases 更新检查（含 Beta 通道开关）。
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/can-mrjin/Cairn/beta/windows/docs/images/big.png" width="680" alt="Cairn for Windows 展开界面" /><br />
-  <img src="https://raw.githubusercontent.com/can-mrjin/Cairn/beta/windows/docs/images/small.png" width="320" alt="Cairn for Windows 收起状态条" />
+  <img src="windows/docs/images/big.png" width="680" alt="Cairn for Windows 展开界面" /><br />
+  <img src="windows/docs/images/small.png" width="320" alt="Cairn for Windows 收起状态条" />
 </div>
 
-Windows 端的安装、快捷键与源码构建请见 [windows/README.zh-CN.md](https://github.com/can-mrjin/Cairn/blob/beta/windows/README.zh-CN.md)。
+Windows 端的安装、快捷键与源码构建请见 [windows/README.zh-CN.md](windows/README.zh-CN.md)。
 
 ---
 
@@ -123,7 +123,7 @@ swift build
 
 ### Windows
 
-前往 [GitHub Releases](https://github.com/can-mrjin/Cairn/releases) 或 GitHub Actions 的 `cairn-windows` 产物下载 `Cairn-Windows-<version>-win-x64.zip`（需安装 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0)）。详细步骤见 [windows/README.zh-CN.md](https://github.com/can-mrjin/Cairn/blob/beta/windows/README.zh-CN.md)。
+前往 [GitHub Releases](https://github.com/can-mrjin/Cairn/releases) 或 GitHub Actions 的 `cairn-windows` 产物下载 `Cairn-Windows-<version>-win-x64.zip`（需安装 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/zh-cn/download/dotnet/8.0)）。详细步骤见 [windows/README.zh-CN.md](windows/README.zh-CN.md)。
 
 ---
 

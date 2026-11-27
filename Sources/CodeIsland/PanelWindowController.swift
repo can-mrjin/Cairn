@@ -123,6 +123,16 @@ enum PanelHeightMetrics {
         let sessions = CGFloat(max(2, maxVisibleSessions))
         return max(300, sessions * 90 + 60)
     }
+
+    /// Adaptive window ceiling on `screenVisibleHeight`: allows the top-anchored
+    /// panel to expand naturally with tall checklist / subagent cards up to 85%
+    /// of the usable screen height before scrolling, while remaining strictly
+    /// within `screenVisibleHeight` to avoid oversized backing stores (#304).
+    static func adaptiveWindowHeight(maxVisibleSessions: Int, screenVisibleHeight: CGFloat) -> CGFloat {
+        let desired = desiredHeight(maxVisibleSessions: maxVisibleSessions)
+        let adaptiveCeiling = floor(screenVisibleHeight * 0.85)
+        return min(max(desired, adaptiveCeiling), screenVisibleHeight)
+    }
 }
 
 /// Hide in Fullscreen's hold on the island: the latch a fullscreen app on
@@ -210,17 +220,10 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     }
 
     private func panelSize(for screen: NSScreen) -> NSSize {
-        let desiredH = PanelHeightMetrics.desiredHeight(
-            maxVisibleSessions: UserDefaults.standard.integer(forKey: SettingsKey.maxVisibleSessions)
+        let maxH = PanelHeightMetrics.adaptiveWindowHeight(
+            maxVisibleSessions: UserDefaults.standard.integer(forKey: SettingsKey.maxVisibleSessions),
+            screenVisibleHeight: screen.visibleFrame.height
         )
-        // Clamp to the screen's usable height. A borderless, non-opaque panel with a
-        // very tall backing store (e.g. maxVisibleSessions=99 → 8970pt, ~18k px tall on
-        // a Retina display) has its compositing dropped by the macOS 26 WindowServer
-        // once the surface goes idle — the card renders blank until a mouse event forces
-        // a redraw, which looked like "invisible after ~2s, reappears on hover" (#304).
-        // The content is top-anchored and the session list scrolls internally, so the
-        // window never needs to be taller than the visible screen.
-        let maxH = min(desiredH, screen.visibleFrame.height)
         let screenW = screen.frame.width
         let desiredW = max(620, CGFloat(SettingsManager.shared.expandedPanelWidth) + 40)
         let width = min(desiredW, screenW - 40)
