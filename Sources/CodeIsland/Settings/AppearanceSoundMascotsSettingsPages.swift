@@ -633,6 +633,7 @@ struct SoundPage: View {
     @AppStorage(SettingsKey.quietHoursStart) private var quietHoursStart = SettingsDefaults.quietHoursStart
     @AppStorage(SettingsKey.quietHoursEnd) private var quietHoursEnd = SettingsDefaults.quietHoursEnd
     @AppStorage(SettingsKey.autoMuteWhenAway) private var autoMuteWhenAway = SettingsDefaults.autoMuteWhenAway
+    @AppStorage(SettingsKey.childAgentNotificationTiming) private var childAgentNotifTiming: String = SettingsDefaults.childAgentNotificationTiming
 
     private func timeBinding(_ minutes: Binding<Int>) -> Binding<Date> {
         Binding<Date>(
@@ -682,6 +683,18 @@ struct SoundPage: View {
             }
 
             if soundEnabled {
+                FlowSettingsSection {
+                    FlowSettingsPickerRow(
+                        title: l10n["child_agent_notif_timing"],
+                        subtitle: l10n["child_agent_notif_timing_desc"],
+                        selection: $childAgentNotifTiming
+                    ) {
+                        Text(l10n["child_agent_notif_root_only"]).tag(ChildAgentNotificationTiming.rootOnly.rawValue)
+                        Text(l10n["child_agent_notif_all_finished"]).tag(ChildAgentNotificationTiming.allFinished.rawValue)
+                        Text(l10n["child_agent_notif_every"]).tag(ChildAgentNotificationTiming.everyCompletion.rawValue)
+                    }
+                }
+
                 FlowSettingsSection(title: l10n["sessions"]) {
                     SoundEventRow(title: l10n["session_start"], subtitle: l10n["new_claude_session"], soundName: "8bit_start", isOn: $soundSessionStart)
                     FlowSettingsDivider()

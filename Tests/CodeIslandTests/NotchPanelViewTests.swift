@@ -50,6 +50,48 @@ final class NotchPanelViewTests: XCTestCase {
         )
     }
 
+    func testCompactWingWidthLeavesTightNotchClearance() {
+        // 6pt outer leading + mascotSize + 4pt notch clearance
+        XCTAssertEqual(NotchWidthMetrics.compactWingWidth(mascotSize: 27), 37, accuracy: 0.001)
+        XCTAssertEqual(NotchWidthMetrics.compactWingWidth(mascotSize: 26), 36, accuracy: 0.001)
+    }
+
+    func testCollapsedStatusExtraIsZeroOnNotchedDisplays() {
+        XCTAssertEqual(
+            NotchWidthMetrics.collapsedStatusExtra(hasNotch: true, isIdle: false, showToolStatus: true, screenWidth: 1512),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            NotchWidthMetrics.collapsedStatusExtra(hasNotch: true, isIdle: false, showToolStatus: false, screenWidth: 1728),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            NotchWidthMetrics.collapsedStatusExtra(hasNotch: true, isIdle: true, showToolStatus: true, screenWidth: 1512),
+            0,
+            accuracy: 0.001
+        )
+    }
+
+    func testCollapsedStatusExtraPreservesNonNotchCenterReserve() {
+        XCTAssertEqual(
+            NotchWidthMetrics.collapsedStatusExtra(hasNotch: false, isIdle: true, showToolStatus: false, screenWidth: 1920),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            NotchWidthMetrics.collapsedStatusExtra(hasNotch: false, isIdle: false, showToolStatus: false, screenWidth: 1920),
+            20,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            NotchWidthMetrics.collapsedStatusExtra(hasNotch: false, isIdle: false, showToolStatus: true, screenWidth: 1920),
+            20 + 1920 * 0.04,
+            accuracy: 0.001
+        )
+    }
+
     func testCompactToolNameKeepsShortNamesUnchanged() {
         XCTAssertEqual(ToolNameDisplay.compact("Bash"), "Bash")
         XCTAssertEqual(ToolNameDisplay.compact("  Read  "), "Read")

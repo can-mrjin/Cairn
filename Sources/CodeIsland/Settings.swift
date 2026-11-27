@@ -214,12 +214,12 @@ struct SettingsDefaults {
 
     static let soundEnabled = false
     static let soundVolume = 50
-    static let soundSessionStart = true
+    static let soundSessionStart = false
     static let soundTaskComplete = true
     static let soundTaskError = true
     static let soundApprovalNeeded = true
     static let soundPromptSubmit = false
-    static let soundBoot = true
+    static let soundBoot = false
     static let quietHoursEnabled = false
     static let quietHoursStart = 22 * 60
     static let quietHoursEnd = 8 * 60

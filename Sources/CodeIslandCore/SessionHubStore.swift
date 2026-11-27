@@ -19,6 +19,7 @@ public struct SessionHubEntry: Sendable, Equatable {
     public let prompt: String
     public let gitBranch: String
     public let status: AgentStatus
+    public let createdAt: Date
     public let lastUpdated: Date
 
     public init(
@@ -29,6 +30,7 @@ public struct SessionHubEntry: Sendable, Equatable {
         prompt: String,
         gitBranch: String,
         status: AgentStatus,
+        createdAt: Date? = nil,
         lastUpdated: Date
     ) {
         self.sessionId = sessionId
@@ -38,6 +40,7 @@ public struct SessionHubEntry: Sendable, Equatable {
         self.prompt = prompt
         self.gitBranch = gitBranch
         self.status = status
+        self.createdAt = createdAt ?? lastUpdated
         self.lastUpdated = lastUpdated
     }
 }
@@ -235,7 +238,7 @@ public enum SessionHubEngine {
     /// - Excludes archived unless `includeArchived == true`
     /// - Applies `filter` (.all / .unread / .active / .pinned)
     /// - Applies case-insensitive `searchQuery` across title, projectName, prompt, source, gitBranch
-    /// - Sorts: waitingApproval/waitingQuestion first, then pinned (by pin order), then running/processing, then unread, then most recently updated.
+    /// - Sorts stably: pinned first (by pin order), then newest main conversation creation time (`createdAt` descending), then `sessionId` ascending.
     public static func visibleEntries(
         _ entries: [SessionHubEntry],
         filter: SessionHubFilter,
@@ -282,32 +285,14 @@ public enum SessionHubEngine {
         }
 
         return filtered.sorted { lhs, rhs in
-            let lhsWaiting = isWaitingStatus(lhs.status)
-            let rhsWaiting = isWaitingStatus(rhs.status)
-            if lhsWaiting != rhsWaiting {
-                return lhsWaiting
-            }
-
             let lhsPin = pinRank[lhs.sessionId] ?? Int.max
             let rhsPin = pinRank[rhs.sessionId] ?? Int.max
             if lhsPin != rhsPin {
                 return lhsPin < rhsPin
             }
 
-            let lhsWorking = isWorkingStatus(lhs.status)
-            let rhsWorking = isWorkingStatus(rhs.status)
-            if lhsWorking != rhsWorking {
-                return lhsWorking
-            }
-
-            let lhsUnread = state.unreadSince[lhs.sessionId] != nil
-            let rhsUnread = state.unreadSince[rhs.sessionId] != nil
-            if lhsUnread != rhsUnread {
-                return lhsUnread
-            }
-
-            if lhs.lastUpdated != rhs.lastUpdated {
-                return lhs.lastUpdated > rhs.lastUpdated
+            if lhs.createdAt != rhs.createdAt {
+                return lhs.createdAt > rhs.createdAt
             }
 
             return lhs.sessionId < rhs.sessionId
@@ -346,13 +331,5 @@ public enum SessionHubEngine {
         }
 
         return SessionHubState()
-    }
-
-    private static func isWaitingStatus(_ status: AgentStatus) -> Bool {
-        status == .waitingApproval || status == .waitingQuestion
-    }
-
-    private static func isWorkingStatus(_ status: AgentStatus) -> Bool {
-        status == .running || status == .processing
     }
 }

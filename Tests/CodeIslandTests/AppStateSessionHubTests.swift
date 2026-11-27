@@ -430,4 +430,431 @@ final class AppStateSessionHubTests: XCTestCase {
             "Should notify once folded sibling worker-2 finishes"
         )
     }
+
+    // MARK: - Antigravity Swarm Tree Folding & Synthesized Coordinator Parent
+
+    func testAntigravitySwarmWorkersSynthesizeCoordinatorParentAndTrackStatus() throws {
+        let appState = AppState()
+        let parentId = "ag-coord-synth"
+        let worker1Id = "ag-worker-5715"
+        let worker2Id = "ag-worker-b8fb"
+
+        // Confirm `gemini` source is also recognized as Antigravity-capable.
+        XCTAssertTrue(AppState.isAntigravitySource("google-antigravity"))
+        XCTAssertTrue(AppState.isAntigravitySource("antigravity"))
+        XCTAssertTrue(AppState.isAntigravitySource("gemini"))
+
+        appState.antigravityLinkLoader = {
+            [
+                worker1Id: AntigravitySubagentLink(
+                    childSessionId: worker1Id,
+                    parentSessionId: parentId,
+                    roleName: "monitor",
+                    swarmTitle: "Polish FlowIsland Notch"
+                ),
+                worker2Id: AntigravitySubagentLink(
+                    childSessionId: worker2Id,
+                    parentSessionId: parentId,
+                    roleName: "slim-notch",
+                    swarmTitle: "Polish FlowIsland Notch"
+                ),
+            ]
+        }
+        appState.antigravitySubagentLinks = appState.antigravityLinkLoader()
+
+        // Two Swarm workers fire hooks before any coordinator hook arrives.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "PreToolUse",
+            "session_id": worker1Id,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/flowisland",
+            "tool_name": "Read",
+            "model": "claude-sonnet-4-5",
+        ]))
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "PreToolUse",
+            "session_id": worker2Id,
+            "_source": "gemini",
+            "cwd": "/tmp/flowisland",
+            "tool_name": "Edit",
+            "model": "gemini-2.5-pro",
+        ]))
+
+        // Flat worker cards must be folded into a single synthesized coordinator card.
+        XCTAssertNil(appState.sessions[worker1Id], "Worker 1 flat card must be removed after folding")
+        XCTAssertNil(appState.sessions[worker2Id], "Worker 2 flat card must be removed after folding")
+
+        let synthesized = try XCTUnwrap(appState.sessions[parentId], "Coordinator parent card must be synthesized")
+        XCTAssertTrue(appState.synthesizedAntigravityParentIds.contains(parentId))
+        XCTAssertEqual(synthesized.lastUserPrompt, "Polish FlowIsland Notch")
+        XCTAssertEqual(synthesized.cwd, "/tmp/flowisland")
+        XCTAssertEqual(synthesized.source, "google-antigravity")
+        XCTAssertEqual(synthesized.status, .running)
+        XCTAssertEqual(Set(synthesized.subagents.keys), [worker1Id, worker2Id])
+        XCTAssertEqual(synthesized.subagents[worker1Id]?.agentType, "monitor")
+        XCTAssertEqual(synthesized.subagents[worker2Id]?.agentType, "slim-notch")
+        XCTAssertEqual(synthesized.subagents[worker1Id]?.status, .running)
+        XCTAssertEqual(synthesized.subagents[worker2Id]?.status, .running)
+
+        // Worker 1 finishes while Worker 2 is still running -> synthesized parent stays running.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "Stop",
+            "session_id": worker1Id,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/flowisland",
+        ]))
+        XCTAssertNil(appState.sessions[worker1Id])
+        XCTAssertEqual(appState.sessions[parentId]?.subagents[worker1Id]?.status, .idle)
+        XCTAssertEqual(appState.sessions[parentId]?.subagents[worker2Id]?.status, .running)
+        XCTAssertEqual(appState.sessions[parentId]?.status, .running)
+
+        // Worker 2 finishes -> all subagents are idle, so synthesized parent transitions to idle.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "Stop",
+            "session_id": worker2Id,
+            "_source": "gemini",
+            "cwd": "/tmp/flowisland",
+        ]))
+        XCTAssertNil(appState.sessions[worker2Id])
+        XCTAssertEqual(appState.sessions[parentId]?.subagents[worker2Id]?.status, .idle)
+        XCTAssertEqual(appState.sessions[parentId]?.status, .idle)
+    }
+
+    func testRealCoordinatorHookPromotesSynthesizedParentAndPreservesSubagents() throws {
+        let appState = AppState()
+        let parentId = "ag-coord-promote"
+        let workerId = "ag-worker-promote"
+
+        let seededLinks = [
+            workerId: AntigravitySubagentLink(
+                childSessionId: workerId,
+                parentSessionId: parentId,
+                roleName: "verifier",
+                swarmTitle: "Verify Build"
+            ),
+        ]
+        appState.antigravityLinkLoader = { seededLinks }
+        appState.antigravitySubagentLinks = seededLinks
+
+        // Worker arrives first and synthesizes the coordinator card.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "PreToolUse",
+            "session_id": workerId,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/repo",
+            "tool_name": "Bash",
+        ]))
+        XCTAssertTrue(appState.synthesizedAntigravityParentIds.contains(parentId))
+        XCTAssertEqual(appState.sessions[parentId]?.subagents.count, 1)
+        XCTAssertEqual(appState.sessions[parentId]?.status, .running)
+
+        // Real coordinator SessionStart arrives later: must promote the same card,
+        // remove it from synthesized tracking, and preserve existing folded subagents.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "SessionStart",
+            "session_id": parentId,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/repo",
+        ]))
+        XCTAssertFalse(appState.synthesizedAntigravityParentIds.contains(parentId))
+        XCTAssertEqual(appState.sessions[parentId]?.subagents[workerId]?.agentType, "verifier")
+        XCTAssertEqual(appState.sessions[parentId]?.lastUserPrompt, "Verify Build")
+
+        // Real coordinator starts its own prompt -> takes ownership of prompt & status.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": parentId,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/repo",
+            "prompt": "Coordinate release verification",
+        ]))
+        XCTAssertEqual(appState.sessions[parentId]?.lastUserPrompt, "Coordinate release verification")
+        XCTAssertEqual(appState.sessions[parentId]?.status, .processing)
+        XCTAssertEqual(appState.sessions[parentId]?.subagents[workerId]?.agentType, "verifier")
+
+        // When worker finishes now, real coordinator's own status must NOT be overridden to idle.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "Stop",
+            "session_id": workerId,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/repo",
+        ]))
+        XCTAssertEqual(appState.sessions[parentId]?.subagents[workerId]?.status, .idle)
+        XCTAssertEqual(appState.sessions[parentId]?.status, .processing)
+    }
+
+    // MARK: - Stable Creation-Time Ordering & Collapsed Bar Binding
+
+    func testCardOrderNeverShiftsWhenNewerSessionIdlesAndOlderSessionRunsOrCompacts() throws {
+        let appState = AppState()
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+
+        var older = SessionSnapshot(startTime: base)
+        older.source = "claude"
+        older.status = .idle
+        older.lastActivity = base.addingTimeInterval(10)
+
+        var middle = SessionSnapshot(startTime: base.addingTimeInterval(60))
+        middle.source = "codex"
+        middle.status = .running
+        middle.lastActivity = base.addingTimeInterval(70)
+
+        var newest = SessionSnapshot(startTime: base.addingTimeInterval(120))
+        newest.source = "google-antigravity"
+        newest.status = .running
+        newest.lastActivity = base.addingTimeInterval(125)
+
+        appState.sessions = [
+            "s-older": older,
+            "s-middle": middle,
+            "s-newest": newest,
+        ]
+
+        let expectedOrder = ["s-newest", "s-middle", "s-older"]
+        XCTAssertEqual(appState.sessionListOrder(), expectedOrder)
+        XCTAssertEqual(
+            appState.hubVisibleSessionIds(filter: .all, searchQuery: "", showArchived: false, baseOrder: appState.sessionListOrder()),
+            expectedOrder
+        )
+
+        // Newest session goes idle while older session starts running, gets fresh activity,
+        // enters waitingApproval, and becomes unread — order must stay 100% unchanged.
+        appState.sessions["s-newest"]?.status = .idle
+        appState.sessions["s-older"]?.status = .running
+        appState.sessions["s-older"]?.lastActivity = base.addingTimeInterval(999)
+        appState.sessions["s-middle"]?.status = .waitingApproval
+        appState.sessions["s-middle"]?.lastActivity = base.addingTimeInterval(1000)
+        appState.toggleSessionRead("s-older")
+
+        XCTAssertEqual(appState.sessionListOrder(), expectedOrder)
+        XCTAssertEqual(
+            appState.hubVisibleSessionIds(filter: .all, searchQuery: "", showArchived: false, baseOrder: appState.sessionListOrder()),
+            expectedOrder
+        )
+
+        // Repeated SessionStart (e.g. Claude `/compact`) on the older session must preserve
+        // its original creation time and never bump it to the top.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "SessionStart",
+            "session_id": "s-older",
+            "source": "compact",
+            "_source": "claude",
+            "cwd": "/tmp/repo",
+        ]))
+        XCTAssertEqual(appState.sessions["s-older"]?.startTime, base)
+        XCTAssertEqual(appState.sessionListOrder(), expectedOrder)
+    }
+
+    func testPrimaryDisplaySessionIdPrefersTopmostActiveInStableOrderAndFallsBackToTopIdle() {
+        let appState = AppState()
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+
+        var olderActive = SessionSnapshot(startTime: base)
+        olderActive.source = "google-antigravity"
+        olderActive.status = .processing
+        olderActive.lastActivity = base.addingTimeInterval(500)
+
+        var middleActive = SessionSnapshot(startTime: base.addingTimeInterval(60))
+        middleActive.source = "codex"
+        middleActive.status = .running
+        middleActive.currentTool = "Bash"
+        middleActive.lastActivity = base.addingTimeInterval(400)
+
+        var newestActive = SessionSnapshot(startTime: base.addingTimeInterval(120))
+        newestActive.source = "claude"
+        newestActive.status = .running
+        newestActive.lastActivity = base.addingTimeInterval(120)
+
+        appState.sessions = [
+            "s-older": olderActive,
+            "s-middle": middleActive,
+            "s-newest": newestActive,
+        ]
+        appState.activeSessionId = "s-older"
+        appState.refreshDerivedState()
+
+        // Case A: #1 newer session is .running and #2/#3 older sessions are active ->
+        // stays locked to #1 in stable creation order (zero bouncing or rotation).
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-newest")
+
+        // Pinning an older active session makes it the explicit topmost active session.
+        appState.toggleSessionPin("s-older")
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-older")
+        appState.toggleSessionPin("s-older")
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-newest")
+
+        // Case B: #1 newer session becomes .idle while #2/#3 are active ->
+        // collapsed bar binds to the topmost active session (#2) so live work stays visible.
+        appState.sessions["s-newest"]?.status = .idle
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-middle")
+
+        // When #2 also settles idle while #3 is still .processing, collapsed bar binds to #3.
+        appState.sessions["s-middle"]?.status = .idle
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-older")
+
+        // Archiving the active session promotes #1 non-archived (idle) since no other active remains.
+        appState.toggleSessionArchive("s-older")
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-newest")
+        appState.toggleSessionArchive("s-older")
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-older")
+
+        // Case C: All sessions .idle -> binds to #1 newest (or top pinned).
+        appState.sessions["s-older"]?.status = .idle
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-newest")
+
+        appState.toggleSessionPin("s-middle")
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-middle")
+        appState.toggleSessionPin("s-middle")
+
+        // Archiving all sessions falls back to #1 newest overall.
+        appState.toggleSessionArchive("s-newest")
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-middle")
+        appState.toggleSessionArchive("s-middle")
+        appState.toggleSessionArchive("s-older")
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-newest")
+    }
+
+    // MARK: - Synchronous Swarm Link Check Before Attention Sound
+
+    func testBrandNewSwarmWorkerStopResolvesParentSynchronouslyAndStaysSilentUnderRootOnly() throws {
+        let watchedKeys = [
+            SettingsKey.soundEnabled,
+            SettingsKey.soundTaskComplete,
+            SettingsKey.soundTaskError,
+            SettingsKey.soundSessionStart,
+            SettingsKey.quietHoursEnabled,
+            SettingsKey.autoMuteWhenAway,
+            SettingsKey.smartSuppress,
+        ]
+        var saved: [String: Any?] = [:]
+        for key in watchedKeys {
+            saved[key] = UserDefaults.standard.object(forKey: key)
+        }
+        var played: [String] = []
+        SoundManager.shared.playSink = { name in played.append(name) }
+        defer {
+            SoundManager.shared.playSink = nil
+            for key in watchedKeys {
+                if let value = saved[key] ?? nil {
+                    UserDefaults.standard.set(value, forKey: key)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: key)
+                }
+            }
+        }
+
+        UserDefaults.standard.set(true, forKey: SettingsKey.soundEnabled)
+        UserDefaults.standard.set(true, forKey: SettingsKey.soundTaskComplete)
+        UserDefaults.standard.set(true, forKey: SettingsKey.soundTaskError)
+        UserDefaults.standard.set(true, forKey: SettingsKey.soundSessionStart)
+        UserDefaults.standard.set(false, forKey: SettingsKey.quietHoursEnabled)
+        UserDefaults.standard.set(false, forKey: SettingsKey.autoMuteWhenAway)
+        UserDefaults.standard.set(false, forKey: SettingsKey.smartSuppress)
+        SettingsManager.shared.childAgentNotificationTiming = .rootOnly
+
+        let appState = AppState()
+        let parentId = "ag-coord-sync-sound"
+        let workerId = "ag-worker-sync-sound"
+
+        // Pre-populate zero links so the worker is brand-new to the in-memory cache;
+        // the loader returns the parent link when consulted synchronously on Stop/SessionStart.
+        XCTAssertTrue(appState.antigravitySubagentLinks.isEmpty)
+        appState.antigravityLinkLoader = {
+            [
+                workerId: AntigravitySubagentLink(
+                    childSessionId: workerId,
+                    parentSessionId: parentId,
+                    roleName: "worker",
+                    swarmTitle: "Sync Sound Test"
+                ),
+            ]
+        }
+
+        // Brand-new worker fires SessionStart, then Stop without any prior async scan finishing.
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "SessionStart",
+            "session_id": workerId,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/flowisland",
+        ]))
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "Stop",
+            "session_id": workerId,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/flowisland",
+        ]))
+
+        XCTAssertEqual(played, [], "Brand-new Swarm worker must resolve its parent synchronously and stay silent under .rootOnly")
+        XCTAssertNil(appState.sessions[workerId], "Worker card must be folded into parent")
+        XCTAssertNotNil(appState.sessions[parentId]?.subagents[workerId])
+
+        // Meanwhile a standalone root Antigravity session (not a child) still chimes on Stop.
+        let rootId = "ag-standalone-root"
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": rootId,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/flowisland",
+            "prompt": "Finish task",
+        ]))
+        appState.handleEvent(try makeEvent([
+            "hook_event_name": "Stop",
+            "session_id": rootId,
+            "_source": "google-antigravity",
+            "cwd": "/tmp/flowisland",
+        ]))
+        XCTAssertEqual(played, ["8bit_complete"], "Root Antigravity session must still chime on Stop")
+    }
+
+    // MARK: - Effective Display Status With Active Subagents
+
+    func testEffectiveDisplayStatusReflectsActiveSubagentsInCardStatusCountAndPrimaryDisplay() {
+        let appState = AppState()
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+
+        var newerIdle = SessionSnapshot(startTime: base.addingTimeInterval(120))
+        newerIdle.source = "claude"
+        newerIdle.status = .idle
+
+        var parentWithRunningSub = SessionSnapshot(startTime: base)
+        parentWithRunningSub.source = "google-antigravity"
+        parentWithRunningSub.status = .idle
+        var sub = SubagentState(agentId: "worker-1", agentType: "model-pill")
+        sub.status = .running
+        parentWithRunningSub.subagents["worker-1"] = sub
+
+        XCTAssertTrue(parentWithRunningSub.hasActiveSubagents)
+        XCTAssertEqual(parentWithRunningSub.effectiveDisplayStatus, .running)
+        XCTAssertEqual(SessionCardStatus(parentWithRunningSub), .working)
+
+        appState.sessions = [
+            "s-newer-idle": newerIdle,
+            "s-parent-delegating": parentWithRunningSub,
+        ]
+        appState.refreshDerivedState()
+
+        XCTAssertEqual(appState.hubActiveSessionCount, 1)
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-parent-delegating")
+        XCTAssertEqual(
+            appState.hubVisibleSessionIds(
+                filter: .active,
+                searchQuery: "",
+                showArchived: false,
+                baseOrder: appState.sessionListOrder()
+            ),
+            ["s-parent-delegating"]
+        )
+
+        // When the subagent waits for approval, effectiveDisplayStatus elevates to waitingApproval.
+        appState.sessions["s-parent-delegating"]?.subagents["worker-1"]?.status = .waitingApproval
+        XCTAssertEqual(appState.sessions["s-parent-delegating"]?.effectiveDisplayStatus, .waitingApproval)
+        XCTAssertEqual(SessionCardStatus(appState.sessions["s-parent-delegating"]!), .needsYou)
+
+        // Once all subagents settle idle, parent returns to idle and #1 newest takes over.
+        appState.sessions["s-parent-delegating"]?.subagents["worker-1"]?.status = .idle
+        XCTAssertEqual(appState.sessions["s-parent-delegating"]?.hasActiveSubagents, false)
+        XCTAssertEqual(appState.sessions["s-parent-delegating"]?.effectiveDisplayStatus, .idle)
+        XCTAssertEqual(appState.hubActiveSessionCount, 0)
+        XCTAssertEqual(appState.primaryDisplaySessionId, "s-newer-idle")
+    }
 }

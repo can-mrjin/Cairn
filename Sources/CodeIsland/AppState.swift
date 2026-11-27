@@ -363,6 +363,9 @@ final class AppState {
     var bypassStore = SessionBypassStore()
     /// Cached Antigravity Swarm/subagent parent-child map loaded from `~/.gemini/antigravity/brain`.
     @ObservationIgnored var antigravitySubagentLinks: [String: AntigravitySubagentLink] = [:]
+    /// Coordinator session IDs synthesized on demand when Swarm workers arrive before any coordinator hook.
+    /// Cleared as soon as a real hook arrives for that session ID so the coordinator owns its own status.
+    @ObservationIgnored var synthesizedAntigravityParentIds: Set<String> = []
     @ObservationIgnored var lastAntigravityLinkScan: Date = .distantPast
     @ObservationIgnored var antigravityLinkAttemptedAt: [String: Date] = [:]
     @ObservationIgnored var antigravityLinkLoader: @Sendable () -> [String: AntigravitySubagentLink] = {
@@ -1053,6 +1056,7 @@ final class AppState {
         subagentModelReads.removeValue(forKey: sessionId)
         bypassStore.removeSession(sessionId)
         antigravityLinkAttemptedAt.removeValue(forKey: sessionId)
+        synthesizedAntigravityParentIds.remove(sessionId)
         hermesStoreReads.removeValue(forKey: sessionId)
         hostHarnessProbes.removeValue(forKey: sessionId)
         hostHarnessProbeRetryAt.removeValue(forKey: sessionId)
@@ -1849,6 +1853,14 @@ final class AppState {
             sessions[sessionId] = SessionSnapshot()
         }
 
+        // If this coordinator card was synthesized earlier to hold Swarm workers before
+        // the coordinator fired its own hook, promote it to a real session while preserving
+        // folded subagents (even if SessionStart rebuilds the SessionSnapshot).
+        let wasSynthesizedAntigravityParent = synthesizedAntigravityParentIds.remove(sessionId) != nil
+        let preservedSynthesizedSubagents = wasSynthesizedAntigravityParent ? (sessions[sessionId]?.subagents ?? [:]) : [:]
+        let preservedSynthesizedPrompt = wasSynthesizedAntigravityParent ? sessions[sessionId]?.lastUserPrompt : nil
+        let preservedSynthesizedStartTime = wasSynthesizedAntigravityParent ? sessions[sessionId]?.startTime : nil
+
         updateCompactionState(forSession: sessionId, eventName: event.eventName)
         if normalizedEventName == "Stop" {
             bypassStore.handleTurnEnded(sessionId: sessionId)
@@ -1872,6 +1884,24 @@ final class AppState {
 
         let reduction = reduceHookEvent(sessions: &sessions, event: event, maxHistory: maxHistory,
                                         replyCompletePlaceholder: L10n.shared["reply_complete_placeholder"])
+        if wasSynthesizedAntigravityParent {
+            if !preservedSynthesizedSubagents.isEmpty {
+                for (subId, sub) in preservedSynthesizedSubagents where sessions[sessionId]?.subagents[subId] == nil {
+                    sessions[sessionId]?.subagents[subId] = sub
+                }
+            }
+            if (sessions[sessionId]?.lastUserPrompt?.isEmpty ?? true),
+               let prompt = preservedSynthesizedPrompt {
+                sessions[sessionId]?.lastUserPrompt = prompt
+            }
+            if let startTime = preservedSynthesizedStartTime,
+               let currentStart = sessions[sessionId]?.startTime {
+                sessions[sessionId]?.startTime = min(currentStart, startTime)
+            }
+        }
+        if let providerId = sessions[sessionId]?.providerSessionId {
+            synthesizedAntigravityParentIds.remove(providerId)
+        }
         // Whose turn this was is read off the session as the event left it,
         // before the Cursor fold below can rebrand, fold or drop the card.
         let attentionSubject = AttentionSubject(sessions[sessionId])
@@ -1884,8 +1914,23 @@ final class AppState {
             _ = applyCursorSubsessionModeToKnownSessions()
         }
 
-        // Fold Antigravity Swarm / subagent workers into their parent conversation's tree
-        let foldedAntigravityChild = applyAntigravitySubagentFolding(forTriggerSessionId: sessionId)
+        // Fold Antigravity Swarm / subagent workers into their parent conversation's tree.
+        // On sound-producing lifecycle events, resolve unknown Antigravity Swarm links
+        // synchronously so child workers never chime before the async disk scan finishes.
+        let soundLifecycleEvents: Set<String> = [
+            "Stop", "StopFailure", "SessionStart", "AfterAgent",
+            "AfterAgentResponse", "TaskRoundComplete", "UserPromptSubmit", "PermissionRequest",
+        ]
+        let needsSyncAntigravityLink = soundLifecycleEvents.contains(normalizedEventName)
+            || soundLifecycleEvents.contains(event.eventName)
+            || EventSoundRouting.soundEvent(
+                rawEventName: event.eventName,
+                normalizedEventName: normalizedEventName
+            ) == EventSoundRouting.turnFailed
+        let foldedAntigravityChild = applyAntigravitySubagentFolding(
+            forTriggerSessionId: sessionId,
+            syncForAttention: needsSyncAntigravityLink
+        )
 
         // After reduce: remoteHostId is authoritative (extractMetadata just ran),
         // so a remote session can never probe the local filesystem here.

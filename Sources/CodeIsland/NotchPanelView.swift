@@ -26,6 +26,28 @@ enum NotchWidthMetrics {
         if hasNotch { return Swift.max(notchW, scaled) }
         return scaled
     }
+
+    /// Minimum wing width needed to display compact bar content:
+    /// 6pt outer padding + mascot + 4pt notch clearance.
+    static func compactWingWidth(mascotSize: CGFloat) -> CGFloat {
+        mascotSize + 10
+    }
+
+    /// Extra horizontal reserve for status and center tool text in the collapsed bar.
+    /// On notched displays the minimalist left wing holds only the mascot (with any
+    /// quota chip reserved by `QuotaChipLayout`) and the right wing is measured
+    /// dynamically by `CompactRightWingLayout`, so zero blind status padding is added.
+    static func collapsedStatusExtra(
+        hasNotch: Bool,
+        isIdle: Bool,
+        showToolStatus: Bool,
+        screenWidth: CGFloat
+    ) -> CGFloat {
+        guard !hasNotch else { return 0 }
+        let extra: CGFloat = isIdle ? 0 : 20
+        let toolExtra: CGFloat = showToolStatus ? screenWidth * 0.04 : 0
+        return extra + toolExtra
+    }
 }
 
 // MARK: - Hover interaction state machine
@@ -296,7 +318,7 @@ struct NotchPanelView: View {
 
     private var collapsedRecapTooltip: String {
         guard showSessionRecap, !shouldShowExpanded else { return "" }
-        let sid = appState.rotatingSessionId ?? appState.activeSessionId ?? appState.sessions.keys.sorted().first
+        let sid = appState.primaryDisplaySessionId
         return SessionMetadataStyle.collapsedRecapTooltip(
             for: sid.flatMap { appState.sessions[$0] },
             showProjectName: showProjectName
@@ -307,7 +329,7 @@ struct NotchPanelView: View {
     private var mascotSize: CGFloat { min(27, notchHeight - 6) }
 
     /// Minimum wing width needed to display compact bar content
-    private var compactWingWidth: CGFloat { mascotSize + 14 }
+    private var compactWingWidth: CGFloat { NotchWidthMetrics.compactWingWidth(mascotSize: mascotSize) }
 
     /// Effective island width — on notched screens the scale can only widen past the notch.
     private var effectiveNotchW: CGFloat {
@@ -469,11 +491,16 @@ struct NotchPanelView: View {
     }
 
     /// Status and tool-status reserves, split evenly between the two wings.
+    /// Zero on notched displays where the left wing only shows the mascot and
+    /// the right wing width is measured dynamically via `CompactRightWingLayout`.
     private var collapsedStatusExtra: CGFloat {
-        let extra: CGFloat = appState.status == .idle ? 0 : 20
-        // Reserve space for tool status — proportional to screen width
-        let toolExtra: CGFloat = displayedToolStatus ? (hasNotch ? screenWidth * 0.03 : screenWidth * 0.04) : 0
-        return extra + toolExtra
+        let primaryStatus = appState.primaryDisplaySessionId.flatMap { appState.sessions[$0]?.effectiveDisplayStatus } ?? .idle
+        return NotchWidthMetrics.collapsedStatusExtra(
+            hasNotch: hasNotch,
+            isIdle: primaryStatus == .idle,
+            showToolStatus: displayedToolStatus,
+            screenWidth: screenWidth
+        )
     }
 
     /// Room for the plan-limit chip in the collapsed bar; `.none` whenever the
@@ -751,8 +778,8 @@ struct NotchPanelView: View {
                             )
                             .transition(.blurFade)
                         }
-                    case .completionCard:
-                        SessionListView(appState: appState, onlySessionId: appState.justCompletedSessionId)
+                    case .completionCard(let sid):
+                        SessionListView(appState: appState, onlySessionId: sid)
                             .transition(.blurFade)
                     case .sessionList:
                         VStack(spacing: 0) {
@@ -1029,8 +1056,7 @@ private struct CompactLeftWing: View {
     @AppStorage(SettingsKey.claudeQuotaChip) private var claudeQuotaChip = SettingsDefaults.claudeQuotaChip
 
     private var displaySession: SessionSnapshot? {
-        let sid = appState.rotatingSessionId ?? appState.activeSessionId ?? appState.sessions.keys.sorted().first
-        guard let sid else { return nil }
+        guard let sid = appState.primaryDisplaySessionId else { return nil }
         return appState.sessions[sid]
     }
     private var displaySource: String {
@@ -1048,7 +1074,7 @@ private struct CompactLeftWing: View {
         }
         return appState.primarySource
     }
-    private var displayStatus: AgentStatus { displaySession?.status ?? .idle }
+    private var displayStatus: AgentStatus { displaySession?.effectiveDisplayStatus ?? .idle }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -1061,8 +1087,8 @@ private struct CompactLeftWing: View {
                         .padding(.leading, 4)
                 }
             } else {
-                // Minimalist single mascot on the left — always tracks the single
-                // highest-priority, most recently active conversation.
+                // Minimalist single mascot on the left — locked to the #1 top
+                // main conversation (pinned or newest created).
                 MascotView(source: displaySource, status: displayStatus, size: mascotSize)
                     .id(displaySource)
                     .transition(.opacity)
@@ -1290,7 +1316,7 @@ private struct CompactRightWing: View {
     }
 
     private var displaySessionId: String? {
-        appState.rotatingSessionId ?? appState.activeSessionId ?? appState.sessions.keys.sorted().first
+        appState.primaryDisplaySessionId
     }
     private var projectName: String? {
         guard let sid = displaySessionId, let cwd = appState.sessions[sid]?.cwd, !cwd.isEmpty else { return nil }
@@ -1302,7 +1328,10 @@ private struct CompactRightWing: View {
         return appState.sessions[sid]
     }
     private var displayStatus: AgentStatus {
-        displaySession?.status ?? appState.status
+        displaySession?.effectiveDisplayStatus ?? appState.status
+    }
+    private var isDelegatingToSubagents: Bool {
+        displaySession?.status == .idle && (displaySession?.hasActiveSubagents == true)
     }
     private var liveToolName: String? {
         guard showToolStatus, displayStatus == .running || displayStatus == .processing else { return nil }
@@ -1322,6 +1351,15 @@ private struct CompactRightWing: View {
     private var compactWorkingText: String? {
         let compacting = isDisplaySessionCompacting
         guard displayStatus != .idle, compacting || displayStatus == .running || displayStatus == .processing else { return nil }
+        if !compacting && isDelegatingToSubagents {
+            return ToolNameDisplay.localizedActivityVerb(
+                tool: "Delegating",
+                status: displayStatus,
+                hasLiveOutput: false,
+                isCompacting: false,
+                l10n: l10n
+            )
+        }
         return ToolNameDisplay.localizedActivityVerb(
             tool: effectiveToolName,
             status: displayStatus,
@@ -1333,6 +1371,9 @@ private struct CompactRightWing: View {
     private var compactWorkingColor: Color {
         if isDisplaySessionCompacting {
             return Color(red: 0.74, green: 0.54, blue: 1.0)
+        }
+        if isDelegatingToSubagents {
+            return Color(red: 0.42, green: 0.94, blue: 0.56)
         }
         if let tool = effectiveToolName, !tool.isEmpty {
             return toolStatusColor(tool)
@@ -1505,7 +1546,7 @@ private final class GPUShimmerHostNSView: NSView {
     private let gradientLayer = CAGradientLayer()
     private let textMaskLayer = CATextLayer()
     private var lastText = ""
-    private var isAnimating = false
+    private var wantsAnimation = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -1522,6 +1563,13 @@ private final class GPUShimmerHostNSView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil {
+            ensureShimmerAnimationIfNeeded()
+        }
+    }
+
     override func layout() {
         super.layout()
         CATransaction.begin()
@@ -1533,6 +1581,23 @@ private final class GPUShimmerHostNSView: NSView {
         let textH: CGFloat = 14
         textMaskLayer.frame = CGRect(x: 0, y: (bounds.height - textH) / 2 - 1, width: bounds.width, height: textH)
         CATransaction.commit()
+        ensureShimmerAnimationIfNeeded()
+    }
+
+    private func ensureShimmerAnimationIfNeeded() {
+        guard wantsAnimation, window != nil else { return }
+        if gradientLayer.animation(forKey: "shimmerSweep") == nil {
+            let anim = CABasicAnimation(keyPath: "locations")
+            anim.fromValue = [-0.8, -0.55, -0.35, -0.20, -0.05, 0.15, 0.4]
+            anim.toValue = [0.6, 0.85, 1.05, 1.20, 1.35, 1.55, 1.8]
+            anim.duration = 2.0
+            anim.repeatCount = .infinity
+            anim.isRemovedOnCompletion = false
+            anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            anim.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+            gradientLayer.locations = [0.0, 0.25, 0.42, 0.50, 0.58, 0.75, 1.0]
+            gradientLayer.add(anim, forKey: "shimmerSweep")
+        }
     }
 
     func configure(text: String, color: NSColor, font: NSFont, animate: Bool) {
@@ -1551,20 +1616,10 @@ private final class GPUShimmerHostNSView: NSView {
         CATransaction.commit()
 
         if animate {
-            if !isAnimating {
-                isAnimating = true
-                let anim = CABasicAnimation(keyPath: "locations")
-                anim.fromValue = [-0.8, -0.55, -0.35, -0.20, -0.05, 0.15, 0.4]
-                anim.toValue = [0.6, 0.85, 1.05, 1.20, 1.35, 1.55, 1.8]
-                anim.duration = 2.0
-                anim.repeatCount = .infinity
-                anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                anim.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
-                gradientLayer.locations = [0.0, 0.25, 0.42, 0.50, 0.58, 0.75, 1.0]
-                gradientLayer.add(anim, forKey: "shimmerSweep")
-            }
+            wantsAnimation = true
+            ensureShimmerAnimationIfNeeded()
         } else {
-            isAnimating = false
+            wantsAnimation = false
             gradientLayer.removeAnimation(forKey: "shimmerSweep")
             CATransaction.begin()
             CATransaction.setDisableActions(true)
@@ -1671,9 +1726,9 @@ struct CompactContextLabel: View {
 private struct CompactToolStatus: View {
     var appState: AppState
 
-    /// Single source of truth: all fields derive from the same session.
+    /// Single source of truth: all fields derive from the #1 top main conversation.
     private var displaySessionId: String? {
-        appState.rotatingSessionId ?? appState.activeSessionId ?? appState.sessions.keys.sorted().first
+        appState.primaryDisplaySessionId
     }
     private var displaySession: SessionSnapshot? {
         guard let sid = displaySessionId else { return nil }
@@ -1682,7 +1737,7 @@ private struct CompactToolStatus: View {
     private var liveTool: String? { displaySession?.currentTool }
     private var liveDesc: String? { displaySession?.toolDescription }
     private var liveOutput: String? { SessionLiveOutputDisplay.summary(for: displaySession) }
-    private var displayStatus: AgentStatus { displaySession?.status ?? .idle }
+    private var displayStatus: AgentStatus { displaySession?.effectiveDisplayStatus ?? .idle }
     @AppStorage(SettingsKey.showProjectName) private var showProjectName = SettingsDefaults.showProjectName
     private var projectName: String? {
         let folder = displaySession?.cwd.flatMap { $0.isEmpty ? nil : ($0 as NSString).lastPathComponent }
@@ -3727,7 +3782,7 @@ private struct SessionListView: View {
         onlySessionId == nil ? SessionListDensity(storedValue: densityRaw) : .comfortable
     }
 
-    /// Needs-you first, then working, then the rest by recent activity —
+    /// Pinned first, then newest main conversation creation time (`startTime` descending) —
     /// held in place while the pointer is over the list.
     private var orderedSessionIds: [String] {
         orderFreeze.apply(appState.sessionListOrder())
@@ -5154,7 +5209,7 @@ private struct SessionCard: View {
                     .fill(dotColor)
                     .frame(width: 6.5, height: 6.5)
                     .shadow(color: cardStatus == .idle && !isUnread ? .clear : dotColor.opacity(0.6), radius: 2)
-                MascotView(source: session.mascotSource, status: session.status, size: 16, animate: false)
+                MascotView(source: session.mascotSource, status: session.effectiveDisplayStatus, size: 16, animate: false)
                     .frame(width: 18)
                 SessionIdentityLine(
                     session: session,
@@ -5271,7 +5326,7 @@ private struct SessionCard: View {
     /// Character + subagent icons.
     private var mascotColumn: some View {
         VStack(spacing: 3) {
-            MascotView(source: session.mascotSource, status: session.status, size: 32, animate: session.status != .idle)
+            MascotView(source: session.mascotSource, status: session.effectiveDisplayStatus, size: 32, animate: session.effectiveDisplayStatus != .idle)
             if showAgentDetails && !session.subagents.isEmpty {
                 let sorted = session.subagents.values.sorted { $0.startTime < $1.startTime }
                 // Grid: 4 per row, 8px icons
@@ -5341,7 +5396,7 @@ private struct SessionCard: View {
                     SessionTag("YOLO", color: Color(red: 1.0, green: 0.45, blue: 0.45))
                 }
                 if showModelLabel, let modelLabel = session.modelLabel {
-                    SessionTag(modelLabel, color: .white.opacity(0.68), maxWidth: 108)
+                    SessionTag(modelLabel, color: .white.opacity(0.68), maxWidth: 220)
                         .help(session.model ?? modelLabel)
                 }
                 TerminalBadge(session: session)
@@ -5352,7 +5407,7 @@ private struct SessionCard: View {
 
     /// Idle cards inside the full list (not the dedicated completion popup) stay
     /// compact: one concise summary line so resting sessions never crowd out active work.
-    private var isQuietIdleCard: Bool { !isCompletion && session.status == .idle }
+    private var isQuietIdleCard: Bool { !isCompletion && session.effectiveDisplayStatus == .idle }
 
     /// Chat history + live status.
     @ViewBuilder
@@ -5604,7 +5659,7 @@ private struct SessionCard: View {
         let expands = compactExpands
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                MascotView(source: session.mascotSource, status: session.status, size: 18, animate: session.status != .idle)
+                MascotView(source: session.mascotSource, status: session.effectiveDisplayStatus, size: 18, animate: session.effectiveDisplayStatus != .idle)
                     .frame(width: 22)
                 Text(session.headline(showProjectName: showProjectName).text)
                     .font(.system(size: fontSize, weight: .bold, design: .monospaced))
@@ -5757,7 +5812,11 @@ private struct SessionCard: View {
             }
         }
 
-        TerminalActivator.activate(session: session, sessionId: sessionId)
+        let targetSession = session
+        let targetSessionId = sessionId
+        DispatchQueue.main.async {
+            TerminalActivator.activate(session: targetSession, sessionId: targetSessionId)
+        }
     }
 
     private func checkJumpSucceeded() async -> Bool {
@@ -6535,7 +6594,7 @@ private struct SessionTag: View {
             .font(.system(size: Self.fontSize + 0.5, weight: .medium))
             .foregroundStyle(color)
             .lineLimit(1)
-            .hugWidth(of: text, fontSize: Self.fontSize + 0.5, upTo: maxWidth.map { $0 - 12 })
+            .hugWidth(of: text, fontSize: Self.fontSize + 0.5, upTo: maxWidth.map { $0 - 12 }, monospaced: false)
             .padding(.horizontal, 6)
             .padding(.vertical, 2.5)
             .background(
@@ -6550,7 +6609,16 @@ private enum TextWidthCache {
     private static var cache: [String: CGFloat] = [:]
 
     static func monospacedMediumWidth(of text: String, fontSize: CGFloat) -> CGFloat {
-        let key = "\(Int((fontSize * 10).rounded())):\(text)"
+        mediumWidth(of: text, fontSize: fontSize, monospaced: true)
+    }
+
+    static func systemMediumWidth(of text: String, fontSize: CGFloat) -> CGFloat {
+        mediumWidth(of: text, fontSize: fontSize, monospaced: false)
+    }
+
+    private static func mediumWidth(of text: String, fontSize: CGFloat, monospaced: Bool) -> CGFloat {
+        let prefix = monospaced ? "m" : "s"
+        let key = "\(prefix):\(Int((fontSize * 10).rounded())):\(text)"
         lock.lock()
         if let hit = cache[key] {
             lock.unlock()
@@ -6558,7 +6626,9 @@ private enum TextWidthCache {
         }
         lock.unlock()
 
-        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium)
+        let font = monospaced
+            ? NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium)
+            : NSFont.systemFont(ofSize: fontSize, weight: .medium)
         let width = ((text as NSString).size(withAttributes: [.font: font]).width + 1).rounded(.up)
 
         lock.lock()
@@ -6570,13 +6640,16 @@ private enum TextWidthCache {
 }
 
 private extension View {
-    /// Monospaced label that hugs its text up to `cap` and truncates below
-    /// that only when its row runs out of room. `.frame(maxWidth:)` alone
-    /// would stretch a short label to the cap.
+    /// Label that hugs its text up to `cap` and truncates below that only when
+    /// its row runs out of room. `.frame(maxWidth:)` alone would stretch a
+    /// short label to the cap.
     @ViewBuilder
-    func hugWidth(of text: String, fontSize: CGFloat, upTo cap: CGFloat?) -> some View {
+    func hugWidth(of text: String, fontSize: CGFloat, upTo cap: CGFloat?, monospaced: Bool = true) -> some View {
         if let cap {
-            let width = min(TextWidthCache.monospacedMediumWidth(of: text, fontSize: fontSize), cap)
+            let measured = monospaced
+                ? TextWidthCache.monospacedMediumWidth(of: text, fontSize: fontSize)
+                : TextWidthCache.systemMediumWidth(of: text, fontSize: fontSize)
+            let width = min(measured, cap)
             frame(minWidth: 0, idealWidth: width, maxWidth: width, alignment: .leading)
         } else {
             self

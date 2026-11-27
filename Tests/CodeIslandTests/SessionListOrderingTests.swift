@@ -124,27 +124,31 @@ final class SessionListOrderingTests: XCTestCase {
         XCTAssertEqual(SessionListOrdering.order(sessions), ["a", "b", "c"])
     }
 
-    func testAppStateOrdersByItsRequestQueues() async throws {
-        // "zeta" asked first but is older and sorts last by name: only the
-        // queue can put it on top.
+    func testAppStateOrdersStablyByPinnedAndCreationTime() async throws {
+        // Cards stay locked to pinned -> newest creation time (`startTime` descending)
+        // -> `sessionId` ascending even when an older session queues an approval request.
         let state = AppState()
         let now = Date()
         state.sessions = [
-            "idle": session(.idle, prompt: "p", activity: now),
-            "alpha": session(.waitingApproval, activity: now.addingTimeInterval(-5)),
-            "zeta": session(.waitingApproval, activity: now.addingTimeInterval(-300)),
+            "newest-idle": session(.idle, prompt: "p", activity: now.addingTimeInterval(-100), started: now.addingTimeInterval(-10)),
+            "middle-approval": session(.waitingApproval, activity: now, started: now.addingTimeInterval(-60)),
+            "oldest-approval": session(.waitingApproval, activity: now.addingTimeInterval(-5), started: now.addingTimeInterval(-300)),
         ]
         let releaseFirst = await DemoRequests.enqueuePermission(state, event: try DemoRequests.hookEvent([
-            "hook_event_name": "PermissionRequest", "session_id": "zeta", "tool_name": "Bash",
+            "hook_event_name": "PermissionRequest", "session_id": "oldest-approval", "tool_name": "Bash",
             "tool_input": ["command": "ls"],
         ]))
         let releaseSecond = await DemoRequests.enqueuePermission(state, event: try DemoRequests.hookEvent([
-            "hook_event_name": "PermissionRequest", "session_id": "alpha", "tool_name": "Bash",
+            "hook_event_name": "PermissionRequest", "session_id": "middle-approval", "tool_name": "Bash",
             "tool_input": ["command": "pwd"],
         ]))
         defer { releaseSecond(); releaseFirst() }
-        XCTAssertEqual(state.sessionListOrder(), ["zeta", "alpha", "idle"],
-                       "the request the inline buttons can answer comes first")
+        XCTAssertEqual(state.sessionListOrder(), ["newest-idle", "middle-approval", "oldest-approval"],
+                       "session list order must remain locked to creation time regardless of request queues")
+
+        state.toggleSessionPin("oldest-approval")
+        XCTAssertEqual(state.sessionListOrder(), ["oldest-approval", "newest-idle", "middle-approval"],
+                       "pinned sessions move to the top in explicit pin order")
     }
 
     // MARK: - Held order

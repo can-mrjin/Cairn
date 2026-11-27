@@ -35,7 +35,7 @@ struct SubagentTreeView: View {
     }
 
     private var isExpanded: Bool {
-        userExpandedOverride ?? hasActiveSubagent
+        userExpandedOverride ?? (hasActiveSubagent || subagents.count <= 5)
     }
 
     private var smallSize: CGFloat {

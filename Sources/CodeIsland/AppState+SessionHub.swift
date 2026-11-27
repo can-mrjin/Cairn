@@ -52,7 +52,7 @@ extension AppState {
 
     var hubActiveSessionCount: Int {
         sessions.filter { id, snap in
-            !SessionHubEngine.isArchived(id, state: hubState) && snap.status != .idle
+            !SessionHubEngine.isArchived(id, state: hubState) && snap.effectiveDisplayStatus != .idle
         }.count
     }
 
@@ -137,6 +137,51 @@ extension AppState {
 
     // MARK: - Today's Hub Filtering & Ordering
 
+    /// Stable creation-time ordering shared by the expanded Hub list and the
+    /// collapsed bar: pinned sessions first (preserving pin order), then newest
+    /// main conversation creation time (`startTime` descending), then
+    /// `sessionId` ascending.
+    func stableSortedSessionIds(excludingArchived: Bool) -> [String] {
+        var pinRank: [String: Int] = [:]
+        pinRank.reserveCapacity(hubState.pinnedIds.count)
+        for (index, id) in hubState.pinnedIds.enumerated() where pinRank[id] == nil {
+            pinRank[id] = index
+        }
+        let candidates = excludingArchived
+            ? sessions.keys.filter { !SessionHubEngine.isArchived($0, state: hubState) }
+            : Array(sessions.keys)
+        return candidates.sorted { lhs, rhs in
+            let lhsPin = pinRank[lhs] ?? Int.max
+            let rhsPin = pinRank[rhs] ?? Int.max
+            if lhsPin != rhsPin {
+                return lhsPin < rhsPin
+            }
+            let lhsStart = sessions[lhs]?.startTime ?? .distantPast
+            let rhsStart = sessions[rhs]?.startTime ?? .distantPast
+            if lhsStart != rhsStart {
+                return lhsStart > rhsStart
+            }
+            return lhs < rhs
+        }
+    }
+
+    /// The primary conversation bound to the collapsed notch bar's mascot,
+    /// live activity status, and tooltip. Scans non-archived sessions in the
+    /// exact same stable order as the expanded list (pinned -> newest
+    /// `startTime` -> `sessionId` ascending):
+    /// 1. Prefers the topmost active (`status != .idle`) non-archived session so
+    ///    live work is shown instead of sleeping `zzz` while staying locked to
+    ///    stable order without rotation/bouncing.
+    /// 2. Falls back to the #1 topmost non-archived session when all are idle
+    ///    (or #1 overall if every session is archived).
+    var primaryDisplaySessionId: String? {
+        let nonArchived = stableSortedSessionIds(excludingArchived: true)
+        if let topActive = nonArchived.first(where: { (sessions[$0]?.effectiveDisplayStatus ?? .idle) != .idle }) {
+            return topActive
+        }
+        return nonArchived.first ?? stableSortedSessionIds(excludingArchived: false).first
+    }
+
     func hubVisibleSessionIds(
         filter: SessionHubFilter,
         searchQuery: String,
@@ -156,7 +201,8 @@ extension AppState {
                 projectName: projectName,
                 prompt: s.lastUserPrompt ?? s.lastAssistantMessage ?? "",
                 gitBranch: s.gitBranch ?? "",
-                status: s.status,
+                status: s.effectiveDisplayStatus,
+                createdAt: s.startTime,
                 lastUpdated: s.lastActivity
             )
         }
@@ -329,7 +375,21 @@ extension AppState {
     // MARK: - Antigravity Subagent / Swarm Tree Folding & Child Notification Gating
 
     nonisolated static func isAntigravitySource(_ source: String?) -> Bool {
-        source == "google-antigravity" || source == "antigravity"
+        guard let normalized = SessionSnapshot.normalizedSupportedSource(source)
+            ?? source?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+            return false
+        }
+        return normalized == "google-antigravity" || normalized == "antigravity" || normalized == "gemini"
+    }
+
+    nonisolated static func synthesizedAntigravityParentStatus(from subagents: [String: SubagentState]) -> AgentStatus {
+        if subagents.values.contains(where: { $0.status == .running }) {
+            return .running
+        }
+        if subagents.values.contains(where: { $0.status == .processing }) {
+            return .processing
+        }
+        return .idle
     }
 
     nonisolated static let antigravityLinkScanCooldown: TimeInterval = 5.0
@@ -373,6 +433,7 @@ extension AppState {
                 if links != self.antigravitySubagentLinks {
                     self.antigravitySubagentLinks = links
                     _ = self.applyAntigravitySubagentFolding(skipRefresh: true)
+                    self.refreshDerivedState()
                 }
             }
         }
@@ -382,14 +443,40 @@ extension AppState {
     /// `subagents` dictionary so workers render as a crisp tree branch inside the
     /// parent card instead of flat top-level cards. Returns true if `sessionId`
     /// is a child session (folded or linked).
+    ///
+    /// Pass `syncForAttention: true` on sound-producing lifecycle events so a
+    /// brand-new Swarm worker resolves its parent link synchronously (<1ms)
+    /// before `decideAttention` runs, preventing spurious child chimes under
+    /// `.rootOnly` / `.allFinished`.
     @discardableResult
-    func applyAntigravitySubagentFolding(forTriggerSessionId triggerId: String? = nil, skipRefresh: Bool = false) -> Bool {
+    func applyAntigravitySubagentFolding(
+        forTriggerSessionId triggerId: String? = nil,
+        skipRefresh: Bool = false,
+        syncForAttention: Bool = false
+    ) -> Bool {
         if !skipRefresh {
             if let triggerId {
                 if Self.isAntigravitySource(sessions[triggerId]?.source) {
                     let isUnknownLink = antigravitySubagentLinks[triggerId] == nil
                         && (sessions[triggerId]?.providerSessionId.flatMap { antigravitySubagentLinks[$0] } == nil)
-                    refreshAntigravitySubagentLinks(force: isUnknownLink, triggerSessionId: triggerId)
+                    let isKnownParent = !(sessions[triggerId]?.subagents.isEmpty ?? true)
+                        || antigravitySubagentLinks.values.contains(where: { $0.parentSessionId == triggerId })
+                    if syncForAttention && isUnknownLink && !isKnownParent {
+                        let now = Date()
+                        let shouldSyncScan = antigravityLinkAttemptedAt[triggerId] == nil
+                            || antigravityLinkScanInFlight
+                            || now.timeIntervalSince(lastAntigravityLinkScan) >= Self.antigravityLinkScanCooldown
+                        if shouldSyncScan {
+                            let links = antigravityLinkLoader()
+                            lastAntigravityLinkScan = now
+                            antigravityLinkAttemptedAt[triggerId] = now
+                            for (childId, link) in links where antigravitySubagentLinks[childId] != link {
+                                antigravitySubagentLinks[childId] = link
+                            }
+                        }
+                    } else {
+                        refreshAntigravitySubagentLinks(force: isUnknownLink && !isKnownParent, triggerSessionId: triggerId)
+                    }
                 }
             } else {
                 refreshAntigravitySubagentLinks(force: false)
@@ -406,17 +493,60 @@ extension AppState {
                 triggerIsChild = true
             }
             // Locate parent card by exact conversation id or providerSessionId
-            let parentKey: String? = {
+            var parentKey: String? = {
                 if sessions[link.parentSessionId] != nil { return link.parentSessionId }
                 return sessions.first(where: { $0.value.providerSessionId == link.parentSessionId })?.key
             }()
-            guard let parentKey, parentKey != childId else {
-                // Parent not yet in `sessions` — still mark parentSessionId so child stays silent
+            if parentKey == nil {
+                // Coordinator hasn't fired a hook yet (e.g. FlowIsland restarted mid-swarm):
+                // synthesize a parent card at `link.parentSessionId` so workers still fold into a tree.
+                guard !link.parentSessionId.isEmpty, link.parentSessionId != childId else {
+                    sessions[childId]?.parentSessionId = link.parentSessionId
+                    continue
+                }
+                var parent = SessionSnapshot(startTime: child.startTime)
+                parent.source = child.source
+                parent.cwd = child.cwd
+                parent.gitBranch = child.gitBranch
+                parent.gitIsWorktree = child.gitIsWorktree
+                parent.model = child.model
+                parent.reasoningEffort = child.reasoningEffort
+                parent.termApp = child.termApp
+                parent.termBundleId = child.termBundleId
+                parent.lastActivity = child.lastActivity
+                if let swarmTitle = link.swarmTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !swarmTitle.isEmpty {
+                    parent.lastUserPrompt = swarmTitle
+                }
+                parent.status = (child.status == .running || child.status == .processing) ? child.status : .idle
+                sessions[link.parentSessionId] = parent
+                synthesizedAntigravityParentIds.insert(link.parentSessionId)
+                parentKey = link.parentSessionId
+            }
+            guard let parentKey, parentKey != childId, var parent = sessions[parentKey] else {
                 sessions[childId]?.parentSessionId = link.parentSessionId
                 continue
             }
 
-            var sub = sessions[parentKey]?.subagents[childId]
+            if synthesizedAntigravityParentIds.contains(parentKey) {
+                if parent.cwd == nil { parent.cwd = child.cwd }
+                if parent.gitBranch == nil {
+                    parent.gitBranch = child.gitBranch
+                    parent.gitIsWorktree = child.gitIsWorktree
+                }
+                if parent.model == nil { parent.model = child.model }
+                if parent.reasoningEffort == nil { parent.reasoningEffort = child.reasoningEffort }
+                if parent.termApp == nil { parent.termApp = child.termApp }
+                if parent.termBundleId == nil { parent.termBundleId = child.termBundleId }
+                if (parent.lastUserPrompt?.isEmpty ?? true),
+                   let swarmTitle = link.swarmTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !swarmTitle.isEmpty {
+                    parent.lastUserPrompt = swarmTitle
+                }
+                parent.startTime = min(parent.startTime, child.startTime)
+            }
+
+            var sub = parent.subagents[childId]
                 ?? SubagentState(agentId: childId, agentType: link.roleName)
             sub.status = child.status
             sub.currentTool = child.currentTool
@@ -425,8 +555,12 @@ extension AppState {
             sub.lastActivity = max(sub.lastActivity, child.lastActivity)
             if let model = child.model { sub.model = model }
             if let effort = child.reasoningEffort { sub.reasoningEffort = effort }
-            sessions[parentKey]?.subagents[childId] = sub
-            sessions[parentKey]?.lastActivity = max(sessions[parentKey]?.lastActivity ?? child.lastActivity, child.lastActivity)
+            parent.subagents[childId] = sub
+            parent.lastActivity = max(parent.lastActivity, child.lastActivity)
+            if synthesizedAntigravityParentIds.contains(parentKey) {
+                parent.status = Self.synthesizedAntigravityParentStatus(from: parent.subagents)
+            }
+            sessions[parentKey] = parent
 
             // Guard: never fold & remove a worker that still has a pending permission or
             // question waiting on user input (matching Codex/Cursor folding safety).

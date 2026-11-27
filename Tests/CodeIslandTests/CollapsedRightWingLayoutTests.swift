@@ -68,20 +68,28 @@ final class CollapsedRightWingLayoutTests: XCTestCase {
     }
 
     func testRightWingThatFitsLeavesTheBarAlone() async throws {
-        // Tool status in detailed mode pads both wings: the badge and dot fit,
-        // and the bar must stay exactly where it was.
+        // On notched screens, tool status no longer pads the collapsed bar with
+        // dead horizontal space: a fitting right wing (completion dot only) keeps
+        // the bar tightly at notch + 2 × compactWingWidth.
         suite.set(true, forKey: SettingsKey.showToolStatus)
-        let state = try await collapsedState(glance: true, chip: false)
+        suite.set(false, forKey: SettingsKey.showClaudeQuota)
+        let state = AppState()
+        var session = SessionSnapshot()
+        session.source = "claude"
+        session.cwd = "/Users/dev/code/web-app"
+        session.status = .idle
+        state.sessions = ["s1": session]
+        state.activeSessionId = "s1"
+        state.refreshDerivedState()
+        state.glanceCompletionActive = true
+
         let g = try renderedGeometry(state)
         XCTAssertNil(g.intrusion)
-        // Centred on the notch: base bar = notch + 2 × 41 + 20 + 3% of 1512.
-        // The panel shape is drawn about a point inside its frame.
-        // Multi-agent collapsed notch widens only the left wing by (count - 1) * (mascotSize + 4)
-        // for the two distinct sources (claude + codex) while keeping barRight anchored.
-        let base = notch + 82 + 20 + 1512 * 0.03
+        // notchHeight = 32 → mascotSize = 26 → compactWingWidth = 36, statusExtra = 0.
+        let wing = NotchWidthMetrics.compactWingWidth(mascotSize: 26)
+        let base = notch + wing * 2
         XCTAssertEqual(g.barRight, (620 + base) / 2 - 1, accuracy: 1)
         XCTAssertEqual(g.barLeft, (620 - base) / 2 + 1, accuracy: 1)
-        await drain(state)
     }
 
     // MARK: - Fixture

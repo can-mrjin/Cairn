@@ -49,7 +49,7 @@ enum SessionCardStatus: Equatable, CaseIterable {
     case error
 
     init(_ session: SessionSnapshot) {
-        switch session.status {
+        switch session.effectiveDisplayStatus {
         case .waitingApproval, .waitingQuestion:
             self = .needsYou
         case .running:
@@ -281,13 +281,11 @@ struct SessionOrderFreeze: Equatable {
 }
 
 extension AppState {
-    /// Session ids in the expanded list's live (unfrozen) order.
+    /// Session ids in the expanded list's live (unfrozen) stable order:
+    /// pinned first (in pin order), then newest main conversation creation time
+    /// (`startTime` descending), then `sessionId` ascending.
     func sessionListOrder() -> [String] {
-        let rank = SessionListOrdering.requestRank(
-            permissionSessionIds: permissionQueue.map { $0.event.sessionId ?? "default" },
-            questionSessionIds: questionQueue.map { $0.event.sessionId ?? "default" }
-        )
-        return SessionListOrdering.order(sessions, requestRank: rank)
+        stableSortedSessionIds(excludingArchived: false)
     }
 }
 

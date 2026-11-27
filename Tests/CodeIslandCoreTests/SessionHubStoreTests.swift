@@ -37,6 +37,7 @@ final class SessionHubStoreTests: XCTestCase {
         prompt: String = "Fix bug",
         gitBranch: String = "main",
         status: AgentStatus = .idle,
+        createdAt: Date? = nil,
         lastUpdated: Date
     ) -> SessionHubEntry {
         SessionHubEntry(
@@ -47,6 +48,7 @@ final class SessionHubStoreTests: XCTestCase {
             prompt: prompt,
             gitBranch: gitBranch,
             status: status,
+            createdAt: createdAt,
             lastUpdated: lastUpdated
         )
     }
@@ -412,17 +414,21 @@ final class SessionHubStoreTests: XCTestCase {
         SessionHubEngine.markUnread(sessionId: "unread-idle", now: base, state: &state)
         SessionHubEngine.archive(sessionId: "archived-idle", now: base, state: &state)
 
+        // Deliberately give older sessions higher statuses (waitingApproval/running/unread)
+        // and newer `lastUpdated` timestamps so we prove order stays locked to:
+        // pinned (in pin order) -> `createdAt` descending -> `sessionId` ascending.
         let entries = [
-            makeEntry(id: "idle-older", status: .idle, lastUpdated: base.addingTimeInterval(10)),
-            makeEntry(id: "idle-newer", status: .idle, lastUpdated: base.addingTimeInterval(90)),
-            makeEntry(id: "unread-idle", status: .idle, lastUpdated: base.addingTimeInterval(5)),
-            makeEntry(id: "running-task", status: .running, lastUpdated: base.addingTimeInterval(20)),
-            makeEntry(id: "processing-task", status: .processing, lastUpdated: base.addingTimeInterval(30)),
-            makeEntry(id: "pin-second", status: .idle, lastUpdated: base.addingTimeInterval(100)),
-            makeEntry(id: "pin-first", status: .idle, lastUpdated: base.addingTimeInterval(1)),
-            makeEntry(id: "waiting-question", status: .waitingQuestion, lastUpdated: base.addingTimeInterval(15)),
-            makeEntry(id: "waiting-approval", status: .waitingApproval, lastUpdated: base.addingTimeInterval(25)),
-            makeEntry(id: "archived-idle", status: .idle, lastUpdated: base.addingTimeInterval(200)),
+            makeEntry(id: "idle-newest", status: .idle, createdAt: base.addingTimeInterval(90), lastUpdated: base.addingTimeInterval(90)),
+            makeEntry(id: "processing-task", status: .processing, createdAt: base.addingTimeInterval(70), lastUpdated: base.addingTimeInterval(300)),
+            makeEntry(id: "tie-b", status: .running, createdAt: base.addingTimeInterval(50), lastUpdated: base.addingTimeInterval(400)),
+            makeEntry(id: "tie-a", status: .idle, createdAt: base.addingTimeInterval(50), lastUpdated: base.addingTimeInterval(50)),
+            makeEntry(id: "waiting-question", status: .waitingQuestion, createdAt: base.addingTimeInterval(40), lastUpdated: base.addingTimeInterval(500)),
+            makeEntry(id: "waiting-approval", status: .waitingApproval, createdAt: base.addingTimeInterval(30), lastUpdated: base.addingTimeInterval(600)),
+            makeEntry(id: "unread-idle", status: .idle, createdAt: base.addingTimeInterval(20), lastUpdated: base.addingTimeInterval(700)),
+            makeEntry(id: "idle-oldest", status: .idle, createdAt: base.addingTimeInterval(10), lastUpdated: base.addingTimeInterval(800)),
+            makeEntry(id: "pin-second", status: .idle, createdAt: base.addingTimeInterval(100), lastUpdated: base.addingTimeInterval(100)),
+            makeEntry(id: "pin-first", status: .idle, createdAt: base.addingTimeInterval(1), lastUpdated: base.addingTimeInterval(1)),
+            makeEntry(id: "archived-idle", status: .idle, createdAt: base.addingTimeInterval(200), lastUpdated: base.addingTimeInterval(900)),
         ]
 
         let visible = SessionHubEngine.visibleEntries(
@@ -436,15 +442,16 @@ final class SessionHubStoreTests: XCTestCase {
         XCTAssertEqual(
             visible.map(\.sessionId),
             [
-                "waiting-approval",
-                "waiting-question",
                 "pin-first",
                 "pin-second",
+                "idle-newest",
                 "processing-task",
-                "running-task",
+                "tie-a",
+                "tie-b",
+                "waiting-question",
+                "waiting-approval",
                 "unread-idle",
-                "idle-newer",
-                "idle-older",
+                "idle-oldest",
             ]
         )
 
@@ -456,6 +463,7 @@ final class SessionHubStoreTests: XCTestCase {
             state: state
         )
         XCTAssertTrue(withArchived.contains { $0.sessionId == "archived-idle" })
+        XCTAssertEqual(withArchived.map(\.sessionId).prefix(3), ["pin-first", "pin-second", "archived-idle"])
     }
 
     func testVisibleEntriesFiltersAndCaseInsensitiveSearchAcrossAllFields() {

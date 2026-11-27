@@ -109,6 +109,23 @@ public struct SessionSnapshot: Sendable {
     public var toolHistory: [ToolHistoryEntry] = []
     public var totalToolCallCount: Int = 0
     public var subagents: [String: SubagentState] = [:]
+
+    /// True when at least one child subagent / Swarm worker is actively running,
+    /// processing, or waiting for user input.
+    public var hasActiveSubagents: Bool {
+        subagents.values.contains { $0.status != .idle }
+    }
+
+    /// UI display status that keeps the parent session visibly active whenever
+    /// any child subagent is running or waiting, without mutating raw `status`
+    /// (so hook reducers and root-only sound decisions remain untouched).
+    public var effectiveDisplayStatus: AgentStatus {
+        if status != .idle { return status }
+        if subagents.values.contains(where: { $0.status == .waitingApproval }) { return .waitingApproval }
+        if subagents.values.contains(where: { $0.status == .waitingQuestion }) { return .waitingQuestion }
+        if subagents.values.contains(where: { $0.status == .running || $0.status == .processing }) { return .running }
+        return .idle
+    }
     /// Agent ids closed by SubagentStop/Stop/SessionEnd, in insertion order
     /// (newest last). Blocks merge/fold from putting a finished subagent back
     /// on the parent. Live growth is capped at ``maxClosedSubagentIds``;
@@ -1609,9 +1626,12 @@ private func applyHookEvent(
         // A link an AppState pass made (the split on switching to Show
         // separately, discovery) is on the card, not in the child's hooks:
         // the rebuild keeps it unless the hook names a parent itself.
+        // Preserve the session's original creation time so `/compact` or
+        // repeated `SessionStart` hooks never reshuffle the card's position.
         let linkedParentId = sessions[sessionId]?.parentSessionId
+        let preservedStartTime = sessions[sessionId]?.startTime ?? Date()
         effects.append(.stopMonitor(sessionId: sessionId))
-        sessions[sessionId] = SessionSnapshot(startTime: Date())
+        sessions[sessionId] = SessionSnapshot(startTime: preservedStartTime)
         // Re-apply metadata from this event (common extraction above wrote to the old session)
         if let cwd = event.rawJSON["cwd"] as? String, !cwd.isEmpty { sessions[sessionId]?.cwd = cwd }
         if let model = hookReportedModel(event) {

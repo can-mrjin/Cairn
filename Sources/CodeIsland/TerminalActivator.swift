@@ -1338,11 +1338,15 @@ struct TerminalActivator {
         if app.isHidden { app.unhide() }
         app.activate(options: [.activateAllWindows])
         // Only nudge via LaunchServices when switching from another app/Space;
-        // redundant openApplication calls add 100-300ms bounce when already active.
-        if !wasFrontmost, let url = appURL(forBundleId: bundleId) {
-            let cfg = NSWorkspace.OpenConfiguration()
-            cfg.activates = true
-            NSWorkspace.shared.openApplication(at: url, configuration: cfg)
+        // redundant openApplication calls add 100-300ms bounce when already active,
+        // and running off the main thread keeps notch collapse frame 1 stall-free.
+        if !wasFrontmost {
+            DispatchQueue.global(qos: .userInteractive).async {
+                guard let url = Self.appURL(forBundleId: bundleId) else { return }
+                let cfg = NSWorkspace.OpenConfiguration()
+                cfg.activates = true
+                NSWorkspace.shared.openApplication(at: url, configuration: cfg)
+            }
         }
 
         // Fast native Accessibility API window raise (~3ms in-process vs ~600ms osascript).
@@ -1556,8 +1560,10 @@ struct TerminalActivator {
             if app.isHidden { app.unhide() }
             app.activate()
         }
-        // Also use openApplication for reliable Space switching (Electron apps like VSCode)
-        if let url = appURL(forBundleId: bundleId) {
+        // Also use openApplication for reliable Space switching (Electron apps like VSCode),
+        // off the main thread so LaunchServices IPC never stalls UI collapse animations.
+        DispatchQueue.global(qos: .userInteractive).async {
+            guard let url = Self.appURL(forBundleId: bundleId) else { return }
             NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         }
     }
@@ -1573,7 +1579,8 @@ struct TerminalActivator {
         }) {
             if app.isHidden { app.unhide() }
         }
-        if let url = appURL(forBundleId: bundleId) {
+        DispatchQueue.global(qos: .userInteractive).async {
+            guard let url = Self.appURL(forBundleId: bundleId) else { return }
             NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         }
     }
