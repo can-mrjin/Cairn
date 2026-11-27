@@ -49,6 +49,10 @@ swift build
 ./scripts/build.sh
 ```
 
+### Windows 版本
+
+Windows 原生 WPF 客户端位于 [`windows/`](windows/README.zh-CN.md) 目录，并通过 GitHub Actions 自动构建发布包（`cairn-windows`，支持 Windows 10/11 x64，需 .NET 8 Desktop Runtime）。安装与构建说明请见 [windows/README.zh-CN.md](windows/README.zh-CN.md)。
+
 ## 开源协议与致谢
 
 本项目基于 [GNU GPL v3.0](LICENSE) 开源：任何修改或衍生版本在对外分发时均须同样以 GPL-3.0 协议开放完整源代码。

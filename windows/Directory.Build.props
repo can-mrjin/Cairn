@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <LangVersion>12</LangVersion>
+    <Version>1.2.1-beta.7</Version>
+    <Authors>Cairn Contributors</Authors>
+    <RepositoryUrl>https://github.com/zepeng-jin/Cairn</RepositoryUrl>
+  </PropertyGroup>
+</Project>

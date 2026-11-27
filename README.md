@@ -49,6 +49,10 @@ To build a standalone `.app` bundle:
 ./scripts/build.sh
 ```
 
+### Windows
+
+A native Windows WPF client lives in [`windows/`](windows/README.md) with automated builds via GitHub Actions (`cairn-windows` artifact, Windows 10/11 x64 + .NET 8 Desktop Runtime). See [windows/README.md](windows/README.md) for installation and build instructions.
+
 ## License & Acknowledgements
 
 Released under the [GNU General Public License v3.0](LICENSE) (`GPL-3.0`). Any redistributed modifications or derivative works must also be released under GPL-3.0.
