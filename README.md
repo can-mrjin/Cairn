@@ -6,7 +6,7 @@
 
 Keep track of your AI coding agents right from the MacBook notch.
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [Releases](https://github.com/zepeng-jin/Cairn/releases)
+[English](README.md) · [简体中文](README.zh-CN.md) · [Releases](https://github.com/can-mrjin/Cairn/releases)
 
 </div>
 
@@ -25,7 +25,7 @@ Keep track of your AI coding agents right from the MacBook notch.
 
 ### Download
 
-1. Download `Cairn.dmg` from [GitHub Releases](https://github.com/zepeng-jin/Cairn/releases) (macOS 14+, Apple Silicon).
+1. Download `Cairn.dmg` from [GitHub Releases](https://github.com/can-mrjin/Cairn/releases) (macOS 14+, Apple Silicon).
 2. Drag `Cairn.app` into `/Applications`.
 3. If macOS Gatekeeper blocks first launch on an unnotarized build, run:
    ```bash
@@ -38,7 +38,7 @@ Keep track of your AI coding agents right from the MacBook notch.
 Requires macOS 14+ and Xcode / Swift 5.9+:
 
 ```bash
-git clone https://github.com/zepeng-jin/Cairn.git
+git clone https://github.com/can-mrjin/Cairn.git
 cd Cairn
 swift build
 ```

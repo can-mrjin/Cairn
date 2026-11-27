@@ -1,6 +1,6 @@
 # Cairn for Windows
 
-面向 Windows 的实时 AI 编程智能体状态面板，隶属于 [zepeng-jin/Cairn](https://github.com/zepeng-jin/Cairn)，改编自 [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland)。
+面向 Windows 的实时 AI 编程智能体状态面板，隶属于 [can-mrjin/Cairn](https://github.com/can-mrjin/Cairn)，改编自 [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland)。
 
 [安装](#安装) · [功能](#功能) · [支持的工具](#支持的工具) · [源码构建](#源码构建) · [English](README.md)
 
@@ -56,7 +56,7 @@ Cairn for Windows 是一款置顶显示的紧凑型 AI 编程智能体状态面�
 
 ### 使用发布包
 
-1. 从 [GitHub Releases](https://github.com/zepeng-jin/Cairn/releases) 或 GitHub Actions 的 `cairn-windows` 产物中下载 `Cairn-Windows-<version>-win-x64.zip`。
+1. 从 [GitHub Releases](https://github.com/can-mrjin/Cairn/releases) 或 GitHub Actions 的 `cairn-windows` 产物中下载 `Cairn-Windows-<version>-win-x64.zip`。
 2. 将 ZIP 完整解压到固定目录。
 3. 运行 `CodeIsland.Windows.exe`。
 4. 打开 **设置 → 挂钩 (Hooks)**，为检测到的工具安装或修复 Hook。
@@ -113,7 +113,7 @@ Codex Desktop 还支持实时会话记录恢复。即使没有传统 CLI Hook，
 需要安装 `global.json` 指定的 .NET 8 SDK。
 
 ```powershell
-git clone https://github.com/zepeng-jin/Cairn.git
+git clone https://github.com/can-mrjin/Cairn.git
 cd Cairn\windows
 dotnet build CodeIsland.Windows.sln -c Release
 dotnet run --project CodeIsland.Windows\CodeIsland.Windows.csproj

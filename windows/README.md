@@ -1,6 +1,6 @@
 # Cairn for Windows
 
-Real-time AI coding agent status panel for Windows, part of [zepeng-jin/Cairn](https://github.com/zepeng-jin/Cairn) and adapted from [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland).
+Real-time AI coding agent status panel for Windows, part of [can-mrjin/Cairn](https://github.com/can-mrjin/Cairn) and adapted from [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland).
 
 [Installation](#installation) · [Features](#features) · [Supported Tools](#supported-tools) · [Build](#build-from-source) · [简体中文](README.zh-CN.md)
 
@@ -30,7 +30,7 @@ The interface is designed around a pure-black, pixel-style Windows island. Doubl
 - **Dark themed controls** — Pixel-style settings, tray menu, action buttons, and scrollbars
 - **Global shortcuts** — Configurable shortcuts for toggling the panel and resolving permission requests
 - **Hook management** — Detect, install, repair, remove, and health-check supported agent hooks
-- **GitHub Releases update checker** — Checks [zepeng-jin/Cairn](https://github.com/zepeng-jin/Cairn/releases) automatically on startup or manually in **Settings → About**, with optional Beta channel toggle
+- **GitHub Releases update checker** — Checks [can-mrjin/Cairn](https://github.com/can-mrjin/Cairn/releases) automatically on startup or manually in **Settings → About**, with optional Beta channel toggle
 - **Local IPC** — User-scoped Windows named pipes keep agent events on the local machine
 
 ## Supported Tools
@@ -56,7 +56,7 @@ Event coverage depends on the hook API exposed by each tool and may vary between
 
 ### Release package
 
-1. Download `Cairn-Windows-<version>-win-x64.zip` from [GitHub Releases](https://github.com/zepeng-jin/Cairn/releases) or the `cairn-windows` artifact in GitHub Actions.
+1. Download `Cairn-Windows-<version>-win-x64.zip` from [GitHub Releases](https://github.com/can-mrjin/Cairn/releases) or the `cairn-windows` artifact in GitHub Actions.
 2. Extract the entire ZIP to a permanent folder.
 3. Run `CodeIsland.Windows.exe`.
 4. Open **Settings → Hooks**, then install or repair the hooks for the detected tools.
@@ -113,7 +113,7 @@ Shortcuts can be changed under **Settings → Shortcuts**.
 Requires the .NET 8 SDK specified by `global.json`.
 
 ```powershell
-git clone https://github.com/zepeng-jin/Cairn.git
+git clone https://github.com/can-mrjin/Cairn.git
 cd Cairn\windows
 dotnet build CodeIsland.Windows.sln -c Release
 dotnet run --project CodeIsland.Windows\CodeIsland.Windows.csproj

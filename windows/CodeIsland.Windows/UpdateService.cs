@@ -15,7 +15,7 @@ public sealed record UpdateCheckResult(
 /// </summary>
 public static class UpdateService
 {
-    public const string Repository = "zepeng-jin/Cairn";
+    public const string Repository = "can-mrjin/Cairn";
 
     private static readonly HttpClient Client = CreateClient();
 
