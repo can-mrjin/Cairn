@@ -231,6 +231,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     private var fullscreenPoller: Timer?
     private var hoverExpandTimer: Timer?
     private var hoverCollapseTimer: Timer?
+    private var autoHideAfterCollapseWork: DispatchWorkItem?
     private var lastObservedSurface: IslandSurface = .collapsed
     private var currentTopBarHeight: CGFloat = 34
     private var isSessionObservationArmed = false
@@ -815,9 +816,17 @@ class PanelWindowController: NSObject, NSWindowDelegate {
         }
 
         if settings.hideWhenNoSession && appState.activeSessionCount == 0 {
-            panel.orderOut(nil)
-            MascotAnimationGate.shared.setPanelVisible(false)
-            return
+            let revealForInteraction = appState.surface.isExpanded
+                || appState.pointerPrehovering
+                || autoHideAfterCollapseWork != nil
+            if !revealForInteraction {
+                panel.orderOut(nil)
+                MascotAnimationGate.shared.setPanelVisible(false)
+                return
+            }
+        } else {
+            autoHideAfterCollapseWork?.cancel()
+            autoHideAfterCollapseWork = nil
         }
 
         if !panel.isVisible {
@@ -962,7 +971,12 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     /// bar when collapsed; full liquid card panel when expanded).
     /// Pure arithmetic — zero WindowServer/CGWindowList IPC on mouse moves.
     private func visibleIslandHitRect(forExpanded expanded: Bool) -> NSRect? {
-        guard let panel, panel.isVisible else { return nil }
+        guard let panel else { return nil }
+        let settings = SettingsManager.shared
+        let autoHiddenForIdle = settings.hideWhenNoSession
+            && appState.activeSessionCount == 0
+            && !fullscreenHide.hidesIsland(hideInFullscreen: settings.hideInFullscreen)
+        guard panel.isVisible || autoHiddenForIdle else { return nil }
         let frame = panel.frame
         let midX = frame.midX + appState.visibleIslandOffsetX
         let topY = frame.maxY
@@ -978,7 +992,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
         } else {
             let collapsedW = appState.collapsedIslandWidth > 1
                 ? appState.collapsedIslandWidth
-                : max(260, appState.visibleIslandSize.width)
+                : max(220, appState.visibleIslandSize.width)
             let w = collapsedW + 14
             let h = topBarH + 8
             return NSRect(x: midX - w / 2, y: topY - h, width: w, height: h + 8)
@@ -1000,11 +1014,26 @@ class PanelWindowController: NSObject, NSWindowDelegate {
             }
         }
         if newSurface == .collapsed {
+            let settings = SettingsManager.shared
+            if settings.hideWhenNoSession && appState.activeSessionCount == 0 {
+                autoHideAfterCollapseWork?.cancel()
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    self.autoHideAfterCollapseWork = nil
+                    self.updateVisibility()
+                }
+                autoHideAfterCollapseWork = work
+                let delay = NotchSilhouetteTiming.collapseUnmountDelay(speed: settings.notchAnimationSpeed)
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+            }
             // Re-evaluate immediately in case the pointer is already sitting on
             // the collapsed notch bar right after a card click collapsed it.
             evaluatePointerHover(at: NSEvent.mouseLocation)
         } else {
+            autoHideAfterCollapseWork?.cancel()
+            autoHideAfterCollapseWork = nil
             appState.suppressHoverUntilPointerLeaves = false
+            updateVisibility()
         }
     }
 
@@ -1022,15 +1051,8 @@ class PanelWindowController: NSObject, NSWindowDelegate {
             appState.followUps.pointerOverIsland = false
             return
         }
-        guard !appState.sessions.isEmpty else {
-            cancelHoverTimers()
-            if appState.pointerPrehovering {
-                appState.pointerPrehovering = false
-            }
-            return
-        }
         let settings = SettingsManager.shared
-        if settings.hideWhenNoSession && appState.activeSessionCount == 0 {
+        if fullscreenHide.hidesIsland(hideInFullscreen: settings.hideInFullscreen) {
             cancelHoverTimers()
             clearPrehoverIfNeeded()
             return
@@ -1082,10 +1104,13 @@ class PanelWindowController: NSObject, NSWindowDelegate {
                 return
             }
 
+            autoHideAfterCollapseWork?.cancel()
+            autoHideAfterCollapseWork = nil
             if !appState.pointerPrehovering {
                 withAnimation(NotchAnimation.hoverPrehover) {
                     appState.pointerPrehovering = true
                 }
+                updateVisibility()
             }
             if hoverExpandTimer == nil {
                 let delay = NotchHoverInteraction.expandDelay(forSetting: settings.hoverExpandDelay)
@@ -1116,11 +1141,12 @@ class PanelWindowController: NSObject, NSWindowDelegate {
         withAnimation(NotchAnimation.hoverPrehover) {
             appState.pointerPrehovering = false
         }
+        updateVisibility()
     }
 
     private func fireHoverExpand() {
         hoverExpandTimer = nil
-        guard appState.surface == .collapsed, !appState.sessions.isEmpty else {
+        guard appState.surface == .collapsed else {
             clearPrehoverIfNeeded()
             return
         }
@@ -1197,6 +1223,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
         fullscreenPoller?.invalidate()
         hoverExpandTimer?.invalidate()
         hoverCollapseTimer?.invalidate()
+        autoHideAfterCollapseWork?.cancel()
         for observer in settingsObservers {
             NotificationCenter.default.removeObserver(observer)
         }

@@ -31,6 +31,7 @@ enum SettingsKey {
     // General - Behavior
     static let hideInFullscreen = "hideInFullscreen"
     static let hideWhenNoSession = "hideWhenNoSession"
+    static let showMenuBarIcon = "showMenuBarIcon"
     static let smartSuppress = "smartSuppress"
     static let collapseOnMouseLeave = "collapseOnMouseLeave"
     static let notchAnimationSpeed = "notchAnimationSpeed"
@@ -186,6 +187,7 @@ struct SettingsDefaults {
     static let panelHorizontalOffset = 0.0
     static let hideInFullscreen = true
     static let hideWhenNoSession = false
+    static let showMenuBarIcon = true
     static let smartSuppress = false
     static let collapseOnMouseLeave = true
     static let notchAnimationSpeed = NotchAnimationSpeed.normal
@@ -303,6 +305,7 @@ class SettingsManager {
             SettingsKey.panelHorizontalOffset: SettingsDefaults.panelHorizontalOffset,
             SettingsKey.hideInFullscreen: SettingsDefaults.hideInFullscreen,
             SettingsKey.hideWhenNoSession: SettingsDefaults.hideWhenNoSession,
+            SettingsKey.showMenuBarIcon: SettingsDefaults.showMenuBarIcon,
             SettingsKey.smartSuppress: SettingsDefaults.smartSuppress,
             SettingsKey.collapseOnMouseLeave: SettingsDefaults.collapseOnMouseLeave,
             SettingsKey.notchAnimationSpeed: SettingsDefaults.notchAnimationSpeed,
@@ -488,6 +491,11 @@ class SettingsManager {
     var hideWhenNoSession: Bool {
         get { defaults.bool(forKey: SettingsKey.hideWhenNoSession) }
         set { defaults.set(newValue, forKey: SettingsKey.hideWhenNoSession) }
+    }
+
+    var showMenuBarIcon: Bool {
+        get { defaults.object(forKey: SettingsKey.showMenuBarIcon) as? Bool ?? SettingsDefaults.showMenuBarIcon }
+        set { defaults.set(newValue, forKey: SettingsKey.showMenuBarIcon) }
     }
 
     var smartSuppress: Bool {

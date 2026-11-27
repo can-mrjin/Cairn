@@ -1083,13 +1083,14 @@ public func deriveSessionSummary(from sessions: [String: SessionSnapshot]) -> Se
     var mostRecentIdleSource: (source: String, time: Date)?
 
     for session in sessions.values {
-        if session.status != .idle {
+        let effectiveStatus = session.effectiveDisplayStatus
+        if effectiveStatus != .idle {
             active += 1
         } else if mostRecentIdleSource == nil || session.lastActivity > mostRecentIdleSource!.time {
             mostRecentIdleSource = (session.source, session.lastActivity)
         }
 
-        switch session.status {
+        switch effectiveStatus {
         case .waitingApproval:
             highestStatus = .waitingApproval
             source = session.source

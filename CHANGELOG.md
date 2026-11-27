@@ -4,6 +4,18 @@ All notable changes to FlowIsland are documented in this file.
 
 FlowIsland is built on the MIT-licensed foundation of [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland).
 
+## [v1.1.2] - 2026-11-27
+
+### English
+- **Hover-to-Expand While Auto-Hidden**: When **Auto-hide When No Active Session** is enabled, moving the pointer over the notch still smoothly reveals and expands the Session Hub panel, then hides cleanly again after the collapse animation finishes.
+- **Optional Menu Bar Icon**: Added a **Show Menu Bar Icon** toggle beneath **Auto-hide When No Active Session** so you can keep the menu bar completely clean and still expand via notch hover.
+- **Subagent Activity Accounting**: Included active subagents in `deriveSessionSummary` so auto-hide never hides the island while Swarm workers or subagents are still running.
+
+### 中文
+- **自动隐藏后支持悬停展开**：开启「无活跃会话时自动隐藏」后，平时隐藏不占空间，鼠标移到刘海区域仍可正常悬停展开面板，移开播完收起动画后再自动隐藏。
+- **可选隐藏菜单栏图标**：在「无活跃会话时自动隐藏」下方新增「显示菜单栏图标」开关，可关闭顶部菜单栏图标保持简洁，同时照常通过悬停刘海唤出面板。
+- **子代理活跃计数修复**：`deriveSessionSummary`计入子代理运行状态，避免主对话暂停但子代理仍在干活时被误判空闲而自动隐藏。
+
 ## [v1.1.1] - 2026-11-27
 
 ### English

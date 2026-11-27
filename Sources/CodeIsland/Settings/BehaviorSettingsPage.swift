@@ -10,6 +10,7 @@ struct BehaviorPage: View {
 
     @AppStorage(SettingsKey.hideInFullscreen) private var hideInFullscreen = SettingsDefaults.hideInFullscreen
     @AppStorage(SettingsKey.hideWhenNoSession) private var hideWhenNoSession = SettingsDefaults.hideWhenNoSession
+    @AppStorage(SettingsKey.showMenuBarIcon) private var showMenuBarIcon = SettingsDefaults.showMenuBarIcon
     @AppStorage(SettingsKey.smartSuppress) private var smartSuppress = SettingsDefaults.smartSuppress
     @AppStorage(SettingsKey.collapseOnMouseLeave) private var collapseOnMouseLeave = SettingsDefaults.collapseOnMouseLeave
     @AppStorage(SettingsKey.autoCollapseAfterSessionJump) private var autoCollapseAfterSessionJump = SettingsDefaults.autoCollapseAfterSessionJump
@@ -85,6 +86,14 @@ struct BehaviorPage: View {
                     isOn: $hideWhenNoSession,
                     animation: .hideNoSession
                 )
+                if hideWhenNoSession {
+                    FlowSettingsDivider()
+                    FlowSettingsToggleRow(
+                        title: l10n["show_menu_bar_icon"],
+                        subtitle: l10n["show_menu_bar_icon_desc"],
+                        isOn: $showMenuBarIcon
+                    )
+                }
                 FlowSettingsDivider()
                 BehaviorToggleRow(
                     title: l10n["smart_suppress"],

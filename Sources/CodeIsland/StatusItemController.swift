@@ -4,6 +4,10 @@ extension UserDefaults {
     @objc dynamic var hideWhenNoSession: Bool {
         bool(forKey: SettingsKey.hideWhenNoSession)
     }
+
+    @objc dynamic var showMenuBarIcon: Bool {
+        object(forKey: SettingsKey.showMenuBarIcon) as? Bool ?? SettingsDefaults.showMenuBarIcon
+    }
 }
 
 @MainActor
@@ -11,20 +15,23 @@ final class StatusItemController: NSObject {
     static let shared = StatusItemController()
 
     private var statusItem: NSStatusItem?
-    private var observation: NSKeyValueObservation?
+    private var observations: [NSKeyValueObservation] = []
     private lazy var menu: NSMenu = makeMenu()
 
     func startObserving() {
         syncVisibility()
-        observation = UserDefaults.standard.observe(
-            \.hideWhenNoSession, options: [.new]
-        ) { [weak self] _, _ in
-            Task { @MainActor in self?.syncVisibility() }
-        }
+        observations = [
+            UserDefaults.standard.observe(\.hideWhenNoSession, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in self?.syncVisibility() }
+            },
+            UserDefaults.standard.observe(\.showMenuBarIcon, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in self?.syncVisibility() }
+            },
+        ]
     }
 
     private func syncVisibility() {
-        if SettingsManager.shared.hideWhenNoSession {
+        if SettingsManager.shared.hideWhenNoSession && SettingsManager.shared.showMenuBarIcon {
             showStatusItem()
         } else {
             hideStatusItem()

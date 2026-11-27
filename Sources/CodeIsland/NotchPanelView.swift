@@ -286,9 +286,11 @@ struct NotchPanelView: View {
     private var showIdleIndicator: Bool {
         !isActive && !hideWhenNoSession
     }
-    /// Whether the bar content should be visible (respects hideWhenNoSession)
+    /// Whether the bar content should be visible (respects hideWhenNoSession,
+    /// while still allowing hover/expand when the pointer moves onto the notch).
     private var showBar: Bool {
-        isActive && !(hideWhenNoSession && appState.activeSessionCount == 0)
+        if appState.surface.isExpanded || appState.pointerPrehovering { return true }
+        return isActive && !(hideWhenNoSession && appState.activeSessionCount == 0)
     }
     private var shouldShowExpanded: Bool {
         showBar && appState.surface.isExpanded
@@ -451,10 +453,10 @@ struct NotchPanelView: View {
     /// (both wings widen equally when the right wing needs extra clearance) so
     /// expanding from collapsed to expanded inflates evenly outward from center.
     private var panelWidth: CGFloat {
+        if shouldShowExpanded { return expandedPanelWidth }
         let nw = effectiveNotchW
         if showIdleIndicator { return idleHovered ? nw + compactWingWidth * 2 + 80 : nw + compactWingWidth * 2 }
         if !isActive { return hasNotch ? nw - 20 : nw }
-        if shouldShowExpanded { return expandedPanelWidth }
         return min(maxPanelWidth, collapsedBarWidth + quotaReserve.extraWidth + rightWingReserve * 2)
     }
 
@@ -3965,6 +3967,19 @@ private struct SessionListView: View {
                         .accessibilityHint(marked ? Text(L10n.shared["remove_idle_sessions_marked"]) : Text(""))
                     }
                 }
+            }
+
+            if onlySessionId == nil && totalSessionCount == 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.38))
+                    Text(l10n.effectiveLanguage.hasPrefix("zh") ? "暂无活跃会话" : "No active sessions")
+                        .font(.system(size: max(11, fontSize - 0.5), weight: .medium))
+                        .foregroundStyle(.white.opacity(0.46))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
             }
 
             // "Show all sessions" — hover with delay to expand
