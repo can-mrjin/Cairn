@@ -21,6 +21,7 @@ struct AppearancePage: View {
     @AppStorage(SettingsKey.showToolStatus) private var showToolStatus = SettingsDefaults.showToolStatus
     @AppStorage(SettingsKey.showGitBranch) private var showGitBranch = SettingsDefaults.showGitBranch
     @AppStorage(SettingsKey.showTaskProgress) private var showTaskProgress = SettingsDefaults.showTaskProgress
+    @AppStorage(SettingsKey.taskProgressStyle) private var taskProgressStyleRaw = SettingsDefaults.taskProgressStyle
     @AppStorage(SettingsKey.showSessionRecap) private var showSessionRecap = SettingsDefaults.showSessionRecap
     @AppStorage(SettingsKey.showModelLabel) private var showModelLabel = SettingsDefaults.showModelLabel
     @AppStorage(SettingsKey.showProjectName) private var showProjectName = SettingsDefaults.showProjectName
@@ -68,6 +69,13 @@ struct AppearancePage: View {
         PanelAccentTheme(storedValue: panelAccentThemeRaw)
     }
 
+    private var taskProgressStyleBinding: Binding<TaskProgressStyle> {
+        Binding(
+            get: { TaskProgressStyle(storedValue: taskProgressStyleRaw) },
+            set: { taskProgressStyleRaw = $0.rawValue }
+        )
+    }
+
     private var notchAnimationSpeedBinding: Binding<Double> {
         Binding(
             get: { NotchAnimationSpeed.clamped(notchAnimationSpeed) },
@@ -84,6 +92,7 @@ struct AppearancePage: View {
                         lineLimit: aiMessageLines,
                         showAgentDetails: showAgentDetails,
                         showTaskProgress: showTaskProgress,
+                        taskProgressStyle: taskProgressStyleBinding.wrappedValue,
                         showToolStatus: showToolStatus,
                         showModelLabel: showModelLabel,
                         showGitBranch: showGitBranch,
@@ -276,6 +285,16 @@ struct AppearancePage: View {
                     isOn: $showTaskProgress
                 )
                 FlowSettingsDivider()
+                FlowSettingsPickerRow(
+                    title: l10n["task_progress_style"],
+                    selection: taskProgressStyleBinding,
+                    disabled: !showTaskProgress
+                ) {
+                    ForEach(TaskProgressStyle.allCases, id: \.self) { style in
+                        Text(l10n[style.titleKey]).tag(style)
+                    }
+                }
+                FlowSettingsDivider()
                 FlowSettingsToggleRow(
                     title: l10n["show_session_recap"],
                     subtitle: l10n["show_session_recap_desc"],
@@ -331,6 +350,7 @@ private struct AppearancePreview: View {
     let lineLimit: Int
     let showAgentDetails: Bool
     let showTaskProgress: Bool
+    var taskProgressStyle: TaskProgressStyle = .compact
     let showToolStatus: Bool
     let showModelLabel: Bool
     let showGitBranch: Bool
@@ -381,6 +401,7 @@ private struct AppearancePreview: View {
         .animation(.easeInOut(duration: 0.18), value: lineLimit)
         .animation(.easeInOut(duration: 0.18), value: showAgentDetails)
         .animation(.easeInOut(duration: 0.18), value: showTaskProgress)
+        .animation(.easeInOut(duration: 0.18), value: taskProgressStyle)
         .animation(.easeInOut(duration: 0.18), value: showToolStatus)
         .animation(.easeInOut(duration: 0.18), value: showModelLabel)
         .animation(.easeInOut(duration: 0.18), value: showGitBranch)
@@ -464,41 +485,31 @@ private struct AppearancePreview: View {
                         .lineLimit(1)
                 }
 
-                // Task checklist preview
+                // Task checklist preview (uses the real AgentTaskProgressView so it
+                // matches live cards across Compact / Expanded / Card styles).
                 if showTaskProgress {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(isChinese ? "任务 (1 已完成, 1 进行中, 1 待处理)" : "Tasks (1 done, 1 active, 1 pending)")
-                            .font(.system(size: max(9.5, fs - 0.5), weight: .medium))
-                            .foregroundStyle(.white.opacity(0.45))
-                        HStack(spacing: 6) {
-                            Circle().fill(accent).frame(width: 6, height: 6)
-                            Text(isChinese ? "审查身份验证流程" : "Review auth token flow")
-                                .font(.system(size: fs, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.90))
-                        }
-                        HStack(spacing: 6) {
-                            Image(systemName: "square")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white.opacity(0.35))
-                            Text(isChinese ? "补充回归测试" : "Add regression tests")
-                                .font(.system(size: fs))
-                                .foregroundStyle(.white.opacity(0.50))
-                        }
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.square.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white.opacity(0.42))
-                            Text(isChinese ? "梳理会话状态" : "Audit session state")
-                                .font(.system(size: fs))
-                                .foregroundStyle(.white.opacity(0.40))
-                                .strikethrough()
-                        }
-                    }
-                    .padding(9)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(.white.opacity(0.04))
+                    AgentTaskProgressView(
+                        tasks: AgentTaskList(items: [
+                            AgentTaskItem(
+                                id: "preview-1",
+                                title: isChinese ? "梳理会话状态" : "Audit session state",
+                                status: .completed
+                            ),
+                            AgentTaskItem(
+                                id: "preview-2",
+                                title: isChinese ? "审查身份验证流程" : "Review auth token flow",
+                                status: .inProgress
+                            ),
+                            AgentTaskItem(
+                                id: "preview-3",
+                                title: isChinese ? "补充回归测试" : "Add regression tests",
+                                status: .pending
+                            ),
+                        ]),
+                        fontSize: fs,
+                        agentIsIdle: false,
+                        style: taskProgressStyle,
+                        accentColor: accent
                     )
                 }
 

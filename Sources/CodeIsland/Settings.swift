@@ -17,6 +17,27 @@ enum NotchHeightMode: String, CaseIterable {
     case custom = "custom"
 }
 
+enum TaskProgressStyle: String, CaseIterable {
+    /// Single-line segmented progress bar + count + active step.
+    case compact = "compact"
+    /// Segmented progress bar followed by the expanded step list.
+    case expanded = "expanded"
+    /// Rounded checklist card with status summary and step rows.
+    case card = "card"
+
+    init(storedValue: String) {
+        self = Self(rawValue: storedValue) ?? .compact
+    }
+
+    var titleKey: String {
+        switch self {
+        case .compact: return "task_progress_style_compact"
+        case .expanded: return "task_progress_style_expanded"
+        case .card: return "task_progress_style_card"
+        }
+    }
+}
+
 enum SettingsKey {
     // Language
     static let appLanguage = "appLanguage"                 // "system", "en", "zh", "zh-Hant", "de", "ja", "ko", "tr"
@@ -111,6 +132,7 @@ enum SettingsKey {
     static let maxToolHistory = "maxToolHistory"
     /// Session cards: agent checklist progress (TaskCreate / TodoWrite / update_plan).
     static let showTaskProgress = "showTaskProgress"
+    static let taskProgressStyle = "taskProgressStyle"
 
     // Mascot
     static let mascotSpeed = "mascotSpeed"
@@ -238,6 +260,7 @@ struct SettingsDefaults {
 
     static let maxToolHistory = 20
     static let showTaskProgress = true
+    static let taskProgressStyle = TaskProgressStyle.compact.rawValue
 
     static let mascotSpeed = 100  // percentage: 0–300, 0 = silent
 
@@ -367,6 +390,7 @@ class SettingsManager {
             SettingsKey.rotationInterval: SettingsDefaults.rotationInterval,
             SettingsKey.maxToolHistory: SettingsDefaults.maxToolHistory,
             SettingsKey.showTaskProgress: SettingsDefaults.showTaskProgress,
+            SettingsKey.taskProgressStyle: SettingsDefaults.taskProgressStyle,
             SettingsKey.mascotSpeed: SettingsDefaults.mascotSpeed,
             SettingsKey.sessionGroupingMode: SettingsDefaults.sessionGroupingMode,
             SettingsKey.showToolStatus: SettingsDefaults.showToolStatus,

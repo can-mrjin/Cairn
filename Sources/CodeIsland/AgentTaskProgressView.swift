@@ -1,9 +1,12 @@
 import SwiftUI
 import CodeIslandCore
 
-/// Session-card row for the agent's own checklist (TaskCreate / TodoWrite /
-/// Codex update_plan): a segmented bar, "2/5", and what the agent is doing
-/// right now. Click it to list every item; hover for the full list as a tooltip.
+/// Non-interactive session-card checklist display (TaskCreate / TodoWrite /
+/// Codex & Claude Desktop update_plan / Antigravity update_steps).
+///
+/// The visual style (compact bar, expanded list, or checklist card) is chosen
+/// in Appearance settings rather than toggled by clicking the card, so every
+/// tap on the card passes straight through to jump to the session.
 ///
 /// A finished list lingers for ``AgentTaskList/completedLinger`` and then fades
 /// via a single one-shot sleep tied to its `completedAt` — no polling timer, so
@@ -14,32 +17,41 @@ struct AgentTaskProgressView: View, Equatable {
     /// The session's turn is over. An unfinished plan still shows its
     /// progress, but not "▶ Running tests" — nothing is running.
     let agentIsIdle: Bool
+    let style: TaskProgressStyle
+    let accentColor: Color
 
-    @State private var showAll: Bool
     /// `completedAt` of a finished list that has already faded out.
     @State private var fadedCompletion: Date?
 
-    init(tasks: AgentTaskList, fontSize: CGFloat, agentIsIdle: Bool = false, initiallyExpanded: Bool = false) {
+    init(
+        tasks: AgentTaskList,
+        fontSize: CGFloat,
+        agentIsIdle: Bool = false,
+        style: TaskProgressStyle = .compact,
+        accentColor: Color = Color(red: 0.3, green: 0.85, blue: 0.4)
+    ) {
         self.tasks = tasks
         self.fontSize = fontSize
         self.agentIsIdle = agentIsIdle
-        _showAll = State(initialValue: initiallyExpanded)
+        self.style = style
+        self.accentColor = accentColor
     }
 
     static let doneColor = Color(red: 0.3, green: 0.85, blue: 0.4)
     static let activeColor = Color(red: 1.0, green: 0.78, blue: 0.3)
     static let pendingColor = Color.white.opacity(0.18)
-    /// Rows the expanded list shows before it scrolls. The card has to stay
-    /// inside the panel window, and on the completion card every row here is
-    /// a row less for the reply.
+    /// Rows the expanded list shows before capping to keep cards bounded
+    /// inside the panel window.
     static let visibleListedItems = 6
-    /// Rows rendered at all; the rest collapse into "+N more" so a runaway
-    /// list can't cost unbounded layout.
+    /// Maximum rows considered by viewport calculations.
     static let maxListedItems = 50
     private static let listRowSpacing: CGFloat = 2
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.tasks == rhs.tasks && lhs.fontSize == rhs.fontSize && lhs.agentIsIdle == rhs.agentIsIdle
+        lhs.tasks == rhs.tasks
+            && lhs.fontSize == rhs.fontSize
+            && lhs.agentIsIdle == rhs.agentIsIdle
+            && lhs.style == rhs.style
     }
 
     private var smallSize: CGFloat { max(9, fontSize - 1) }
@@ -65,27 +77,30 @@ struct AgentTaskProgressView: View, Equatable {
 
     var body: some View {
         if isShown {
-            VStack(alignment: .leading, spacing: 4) {
-                Button {
-                    withAnimation(NotchAnimation.micro) { showAll.toggle() }
-                } label: {
+            Group {
+                switch style {
+                case .compact:
                     compactRow
-                }
-                .buttonStyle(.plain)
-                .help(tooltip)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(String(
-                    format: L10n.shared["task_progress_a11y"],
-                    tasks.completedCount,
-                    tasks.items.count
-                ))
+                        .padding(.leading, 4)
 
-                if showAll {
-                    fullList
-                        .transition(.opacity)
+                case .expanded:
+                    VStack(alignment: .leading, spacing: 4) {
+                        compactRow
+                        listRows
+                    }
+                    .padding(.leading, 4)
+
+                case .card:
+                    checklistCard
                 }
             }
-            .padding(.leading, 4)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(
+                format: L10n.shared["task_progress_a11y"],
+                tasks.completedCount,
+                tasks.items.count
+            ))
             .task(id: tasks.completedAt) { await fadeOutWhenFinished() }
             .transition(.opacity)
         }
@@ -144,28 +159,7 @@ struct AgentTaskProgressView: View, Equatable {
                 EmptyView()
             }
 
-            Spacer(minLength: 4)
-
-            Image(systemName: showAll ? "chevron.up" : "chevron.down")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.white.opacity(0.5))
-        }
-        .contentShape(Rectangle())
-    }
-
-    @ViewBuilder private var fullList: some View {
-        if let height = Self.listViewportHeight(
-            itemCount: tasks.items.count,
-            lineHeight: IslandMarkdownStyle.lineHeight(smallSize)
-        ) {
-            ScrollView(.vertical) {
-                listRows
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(height: height)
-            .scrollIndicatorsFlash(onAppear: true)
-        } else {
-            listRows
+            Spacer(minLength: 0)
         }
     }
 
@@ -181,7 +175,7 @@ struct AgentTaskProgressView: View, Equatable {
 
     private var listRows: some View {
         VStack(alignment: .leading, spacing: Self.listRowSpacing) {
-            ForEach(tasks.items.prefix(Self.maxListedItems)) { item in
+            ForEach(tasks.items.prefix(Self.visibleListedItems)) { item in
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text(Self.symbol(item.status))
                         // The bar's pending grey is too faint for a glyph.
@@ -193,8 +187,8 @@ struct AgentTaskProgressView: View, Equatable {
                 }
                 .font(.system(size: smallSize, design: .monospaced))
             }
-            if tasks.items.count > Self.maxListedItems {
-                Text(String(format: L10n.shared["task_progress_more"], tasks.items.count - Self.maxListedItems))
+            if tasks.items.count > Self.visibleListedItems {
+                Text(String(format: L10n.shared["task_progress_more"], tasks.items.count - Self.visibleListedItems))
                     .font(.system(size: smallSize, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.5))
             }
@@ -202,13 +196,62 @@ struct AgentTaskProgressView: View, Equatable {
         .padding(.leading, 2)
     }
 
-    private var tooltip: String {
-        let limit = 30
-        var lines = tasks.items.prefix(limit).map { "\(Self.symbol($0.status)) \($0.title)" }
-        if tasks.items.count > limit {
-            lines.append(String(format: L10n.shared["task_progress_more"], tasks.items.count - limit))
+    private var checklistCard: some View {
+        let doneCount = tasks.completedCount
+        let activeCount = tasks.items.lazy.filter { $0.status == .inProgress }.count
+        let pendingCount = max(0, tasks.items.count - doneCount - activeCount)
+        let headerText: String = tasks.isAllCompleted
+            ? L10n.shared["task_progress_all_done"]
+            : String(format: L10n.shared["task_card_header"], doneCount, activeCount, pendingCount)
+
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(headerText)
+                .font(.system(size: max(9.5, fontSize - 0.5), weight: .medium))
+                .foregroundStyle(tasks.isAllCompleted ? Self.doneColor.opacity(0.85) : .white.opacity(0.45))
+                .lineLimit(1)
+
+            ForEach(tasks.items.prefix(Self.visibleListedItems)) { item in
+                HStack(spacing: 6) {
+                    switch item.status {
+                    case .inProgress:
+                        Circle()
+                            .fill(accentColor)
+                            .frame(width: 6, height: 6)
+                    case .pending:
+                        Image(systemName: "square")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.white.opacity(0.35))
+                    case .completed:
+                        Image(systemName: "checkmark.square.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.white.opacity(0.42))
+                    }
+
+                    Text(item.status == .inProgress ? item.progressLabel : item.title)
+                        .font(.system(size: fontSize, weight: item.status == .inProgress ? .medium : .regular))
+                        .foregroundStyle(
+                            item.status == .inProgress
+                                ? .white.opacity(0.90)
+                                : (item.status == .completed ? .white.opacity(0.40) : .white.opacity(0.55))
+                        )
+                        .strikethrough(item.status == .completed)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+
+            if tasks.items.count > Self.visibleListedItems {
+                Text(String(format: L10n.shared["task_progress_more"], tasks.items.count - Self.visibleListedItems))
+                    .font(.system(size: smallSize))
+                    .foregroundStyle(.white.opacity(0.42))
+            }
         }
-        return lines.joined(separator: "\n")
+        .padding(9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(.white.opacity(0.04))
+        )
     }
 
     /// U+FE0E keeps ▶ in text presentation instead of the emoji glyph.

@@ -5144,6 +5144,8 @@ private struct SessionCard: View {
     @AppStorage(SettingsKey.showAgentDetails) private var showAgentDetails = SettingsDefaults.showAgentDetails
     @AppStorage(SettingsKey.autoCollapseAfterSessionJump) private var autoCollapseAfterSessionJump = SettingsDefaults.autoCollapseAfterSessionJump
     @AppStorage(SettingsKey.showTaskProgress) private var showTaskProgress = SettingsDefaults.showTaskProgress
+    @AppStorage(SettingsKey.taskProgressStyle) private var taskProgressStyleRaw = SettingsDefaults.taskProgressStyle
+    @AppStorage(SettingsKey.panelAccentTheme) private var panelAccentThemeRaw = SettingsDefaults.panelAccentTheme
     @AppStorage(SettingsKey.showSessionRecap) private var showSessionRecap = SettingsDefaults.showSessionRecap
     @AppStorage(SettingsKey.showModelLabel) private var showModelLabel = SettingsDefaults.showModelLabel
     @AppStorage(SettingsKey.showProjectName) private var showProjectName = SettingsDefaults.showProjectName
@@ -5244,15 +5246,18 @@ private struct SessionCard: View {
         let isUnread = appState.isSessionUnread(sessionId)
         let isRestingUnread = isUnread && (cardStatus == .idle || cardStatus == .done)
         let dotColor: Color = isRestingUnread ? Self.unreadFrameColor : cardStatus.color
+        let showStatusDot = shouldShowStatusDot(isUnread: isUnread)
         let needsAttention = (session.status == .waitingApproval && approvalQueueIndex != nil)
             || showsExternalCursorQuestion
             || showsQuestionWaitingRow
         return VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .center, spacing: 7) {
-                Circle()
-                    .fill(dotColor)
-                    .frame(width: 6.5, height: 6.5)
-                    .shadow(color: (cardStatus == .idle || cardStatus == .done) && !isUnread ? .clear : dotColor.opacity(0.7), radius: 2.5)
+                if showStatusDot {
+                    Circle()
+                        .fill(dotColor)
+                        .frame(width: 6.5, height: 6.5)
+                        .shadow(color: dotColor.opacity(0.7), radius: 2.5)
+                }
                 MascotView(source: session.mascotSource, status: session.effectiveDisplayStatus, size: 16, animate: false)
                     .frame(width: 18)
                 SessionIdentityLine(
@@ -5316,9 +5321,15 @@ private struct SessionCard: View {
                     cursorQuestionBlock
                 }
 
-                // Agent checklist progress (TaskCreate / TodoWrite / update_plan).
+                // Agent checklist progress (TaskCreate / TodoWrite / update_plan / update_steps).
                 if showTaskProgress && !session.agentTasks.isEmpty {
-                    AgentTaskProgressView(tasks: session.agentTasks, fontSize: fontSize, agentIsIdle: session.status == .idle)
+                    AgentTaskProgressView(
+                        tasks: session.agentTasks,
+                        fontSize: fontSize,
+                        agentIsIdle: session.status == .idle,
+                        style: TaskProgressStyle(storedValue: taskProgressStyleRaw),
+                        accentColor: PanelAccentTheme(storedValue: panelAccentThemeRaw).color
+                    )
                 }
 
                 if showsQuestionWaitingRow {
@@ -5392,20 +5403,35 @@ private struct SessionCard: View {
         .frame(width: 36)
     }
 
-    /// Clean Vibe Island-style header: subtle status dot, crisp SF Pro title, calm right metadata.
+    /// Only show a glowing status dot when the session is actively running,
+    /// waiting on the user, errored, or carries an unread reply. Idle/read
+    /// sessions omit the dim grey dot so the title aligns cleanly.
+    private func shouldShowStatusDot(isUnread: Bool) -> Bool {
+        switch cardStatus {
+        case .working, .thinking, .needsYou, .error:
+            return true
+        case .idle, .done, .stopped:
+            return isUnread
+        }
+    }
+
+    /// Clean Vibe Island-style header: glowing status dot only when active/unread, crisp SF Pro title, calm right metadata.
     private var comfortableHeader: some View {
         let isUnread = appState.isSessionUnread(sessionId)
         let isRestingUnread = isUnread && (cardStatus == .idle || cardStatus == .done)
         let dotColor: Color = isRestingUnread
             ? Self.unreadFrameColor
             : cardStatus.color
+        let showStatusDot = shouldShowStatusDot(isUnread: isUnread)
         return HStack(alignment: .center, spacing: 6) {
-            Circle()
-                .fill(dotColor)
-                .frame(width: 7, height: 7)
-                .shadow(color: (cardStatus == .idle || cardStatus == .done) && !isUnread ? .clear : dotColor.opacity(0.75), radius: 3)
-                .accessibilityLabel(cardStatus.label)
-                .layoutPriority(3)
+            if showStatusDot {
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 7, height: 7)
+                    .shadow(color: dotColor.opacity(0.75), radius: 3)
+                    .accessibilityLabel(cardStatus.label)
+                    .layoutPriority(3)
+            }
 
             SessionIdentityLine(
                 session: session,
