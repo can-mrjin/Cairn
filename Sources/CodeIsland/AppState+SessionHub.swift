@@ -437,11 +437,12 @@ extension AppState {
                     links[id] = direct
                 }
             }
+            let resolvedLinks = links
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.antigravityLinkScanInFlight = false
                 var merged = self.antigravitySubagentLinks
-                for (childId, link) in links {
+                for (childId, link) in resolvedLinks {
                     merged[childId] = link
                 }
                 if merged != self.antigravitySubagentLinks {
@@ -481,15 +482,27 @@ extension AppState {
                             || antigravityLinkScanInFlight
                             || now.timeIntervalSince(lastAntigravityLinkScan) >= Self.antigravityLinkScanCooldown
                         if shouldSyncScan {
-                            var links = antigravityLinkLoader()
-                            if links[triggerId] == nil,
-                               let direct = antigravityDirectSubagentLinkLoader(triggerId) {
-                                links[triggerId] = direct
-                            }
-                            lastAntigravityLinkScan = now
-                            antigravityLinkAttemptedAt[triggerId] = now
-                            for (childId, link) in links where antigravitySubagentLinks[childId] != link {
-                                antigravitySubagentLinks[childId] = link
+                            if let direct = antigravityDirectSubagentLinkLoader(triggerId) {
+                                antigravityLinkAttemptedAt[triggerId] = now
+                                if antigravitySubagentLinks[triggerId] != direct {
+                                    antigravitySubagentLinks[triggerId] = direct
+                                }
+                            } else {
+                                let links = hasCustomAntigravityLinkLoader
+                                    ? antigravityLinkLoader()
+                                    : antigravitySyncLinkLoader()
+                                antigravityLinkAttemptedAt[triggerId] = now
+                                for (childId, link) in links where antigravitySubagentLinks[childId] != link {
+                                    antigravitySubagentLinks[childId] = link
+                                }
+                                if hasCustomAntigravityLinkLoader || links[triggerId] != nil {
+                                    lastAntigravityLinkScan = now
+                                } else {
+                                    // Bounded sync scan missed; kick off a full async scan
+                                    // without consuming its cooldown so older Swarm coordinators
+                                    // outside the newest 24 brain directories are still linked.
+                                    refreshAntigravitySubagentLinks(force: true, triggerSessionId: triggerId)
+                                }
                             }
                         }
                     } else {

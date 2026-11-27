@@ -374,4 +374,64 @@ final class CoworkSessionWatcherTests: XCTestCase {
         }.flatMap { $0 }
         XCTAssertEqual(stdUpdates.map(\.sessionId), [stdId])
     }
+
+    func testReconcileActiveSessionsCatchesUpDroppedTrailingResultEvent() throws {
+        let baseDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cowork-reconcile-\(UUID().uuidString)").path
+        defer { try? FileManager.default.removeItem(atPath: baseDir) }
+
+        let root = "\(baseDir)/Claude-3p/local-agent-mode-sessions"
+        let account = "\(root)/acct/org"
+        let sessionId = "local_47847055-41a2-45e2-985b-ea149ea38122"
+        let shortDir = "\(account)/47847055"
+        try FileManager.default.createDirectory(atPath: shortDir, withIntermediateDirectories: true)
+        try #"{"sessionId":"\#(sessionId)","cliSessionId":"cli-1","title":"Thesis","isArchived":false}"#
+            .write(toFile: "\(account)/\(sessionId).json", atomically: true, encoding: .utf8)
+
+        let auditPath = "\(shortDir)/audit.jsonl"
+        try (CoworkAuditFixture.userPrompt + "\n")
+            .write(toFile: auditPath, atomically: false, encoding: .utf8)
+
+        let localRecorder = OutputRecorder()
+        let watcher = CoworkSessionWatcher(
+            rootPaths: [root],
+            usesFileSystemEvents: false
+        ) { output in
+            localRecorder.record(output)
+        }
+        defer { watcher.stop() }
+        watcher.startAndWait()
+        _ = localRecorder.drain()
+
+        // Turn starts as processing.
+        let handle = try XCTUnwrap(FileHandle(forWritingAtPath: auditPath))
+        handle.seekToEndOfFile()
+        handle.write(Data((CoworkAuditFixture.userPrompt + "\n").utf8))
+        try handle.close()
+        watcher.ingestAndWait(paths: [auditPath])
+        let started = localRecorder.drain().compactMap { output -> [CoworkSessionWatcher.SessionUpdate]? in
+            if case .updates(let batch) = output { return batch }
+            return nil
+        }.flatMap { $0 }
+        XCTAssertEqual(started.first?.audit.phase, .processing)
+
+        // Trailing result + command_lifecycle appended WITHOUT any FSEvent arriving.
+        let finishHandle = try XCTUnwrap(FileHandle(forWritingAtPath: auditPath))
+        finishHandle.seekToEndOfFile()
+        finishHandle.write(Data((CoworkAuditFixture.resultSuccess + "\n" + #"{"type":"command_lifecycle","state":"completed"}"# + "\n").utf8))
+        try finishHandle.close()
+
+        watcher.reconcileActiveSessionsAndWait()
+        let reconciled = localRecorder.drain().compactMap { output -> [CoworkSessionWatcher.SessionUpdate]? in
+            if case .updates(let batch) = output { return batch }
+            return nil
+        }.flatMap { $0 }
+        XCTAssertEqual(reconciled.count, 1)
+        XCTAssertEqual(reconciled.first?.audit.phase, .idle)
+        XCTAssertEqual(reconciled.first?.turnsCompleted, 1)
+
+        // Second reconcile once idle emits nothing.
+        watcher.reconcileActiveSessionsAndWait()
+        XCTAssertTrue(localRecorder.drain().isEmpty)
+    }
 }

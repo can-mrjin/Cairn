@@ -477,8 +477,13 @@ final class CoworkSessionWatcher: @unchecked Sendable {
             let hasAudit = auditIds.contains(id)
             let hasMetadata = metadataIds.contains(id)
             // Transcript appends fire on every streamed line; they only matter
-            // until the transcript path is known.
-            if !isNew, !hasAudit, !hasMetadata, sessions[id]?.transcriptPath != nil {
+            // until the transcript path is known — UNLESS the turn is still
+            // in-flight, in which case a transcript write (e.g. final assistant
+            // reply / cost-state) is a cheap hint to catch up any audit bytes
+            // whose FSEvent was coalesced away.
+            if !isNew, !hasAudit, !hasMetadata,
+               sessions[id]?.transcriptPath != nil,
+               sessions[id]?.audit.phase == .idle {
                 continue
             }
             let metadataPath = CoworkPaths.metadataPath(accountDirectory: accountDirectory, sessionId: id)
@@ -500,7 +505,13 @@ final class CoworkSessionWatcher: @unchecked Sendable {
             }
 
             var tracked = sessions[id] ?? Tracked(accountDirectory: accountDirectory)
-            let events = (isNew || hasAudit) ? readAppendedAudit(&tracked, sessionId: id) : []
+            // Always check for appended audit bytes when a session is still
+            // in-flight (not `.idle`) even if FSEvents only delivered a
+            // metadata or transcript event — macOS FSEvents with `.noDefer`
+            // can coalesce/miss trailing `result` appends written milliseconds
+            // after an `assistant` line on an already-open file descriptor.
+            let shouldCheckAudit = isNew || hasAudit || tracked.audit.phase != .idle
+            let events = shouldCheckAudit ? readAppendedAudit(&tracked, sessionId: id) : []
             let previousMetadata = tracked.metadata
             if isNew || hasMetadata || tracked.metadata == nil {
                 tracked.metadata = loadMetadata(metadataPath) ?? tracked.metadata
@@ -524,9 +535,18 @@ final class CoworkSessionWatcher: @unchecked Sendable {
             sessions[id] = tracked
 
             // Bookkeeping lines (auto-approved permissions, compact
-            // boundaries, status pings) can land after a turn ended; they are
-            // not a turn, and must not reopen a card the idle sweep collected.
-            let isLive = events.contains { $0 != .ignored }
+            // boundaries, status pings, or a trailing `command_lifecycle`
+            // after `result` already settled the turn idle) can land after a
+            // turn ended; they are not a live turn and must not reopen a card
+            // the idle sweep collected.
+            let isLive = tracked.audit != before || events.contains { event in
+                switch event {
+                case .ignored, .commandLifecycleEnded:
+                    return false
+                default:
+                    return true
+                }
+            }
             let changed = isLive
                 || previousMetadata != metadata
                 || previousTranscript != tracked.transcriptPath
@@ -554,6 +574,42 @@ final class CoworkSessionWatcher: @unchecked Sendable {
 
         if !removed.isEmpty { onOutput(.removed(removed)) }
         if !updates.isEmpty { onOutput(.updates(updates)) }
+    }
+
+    /// Re-checks `audit.jsonl` byte offsets for sessions currently in a non-idle
+    /// phase. Runs off the main thread and does zero I/O when all sessions are
+    /// idle; acts as a backstop if macOS FSEvents misses the trailing `result`
+    /// append of a finished turn.
+    func reconcileActiveSessions() {
+        queue.async { [weak self] in
+            self?.reconcileActiveSessionsOnQueue()
+        }
+    }
+
+    /// Test seam: synchronously reconcile active Cowork sessions on the watcher queue.
+    func reconcileActiveSessionsAndWait() {
+        queue.sync { reconcileActiveSessionsOnQueue() }
+    }
+
+    private func reconcileActiveSessionsOnQueue() {
+        guard started else { return }
+        var auditIds: Set<String> = []
+        var accountDirectories: [String: String] = [:]
+        for (id, tracked) in sessions where tracked.audit.phase != .idle {
+            let path = CoworkPaths.auditPath(accountDirectory: tracked.accountDirectory, sessionId: id)
+            guard let stat = fileStat(path) else { continue }
+            if stat.size != tracked.auditOffset || (tracked.auditInode != nil && tracked.auditInode != stat.inode) {
+                auditIds.insert(id)
+                accountDirectories[id] = tracked.accountDirectory
+            }
+        }
+        guard !auditIds.isEmpty else { return }
+        process(
+            auditIds: auditIds,
+            metadataIds: [],
+            transcriptIds: [],
+            accountDirectories: accountDirectories
+        )
     }
 
     /// Dropped/coalesced-away events: diff the whole store against what we track.

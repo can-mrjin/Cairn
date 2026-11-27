@@ -368,8 +368,14 @@ final class AppState {
     @ObservationIgnored var synthesizedAntigravityParentIds: Set<String> = []
     @ObservationIgnored var lastAntigravityLinkScan: Date = .distantPast
     @ObservationIgnored var antigravityLinkAttemptedAt: [String: Date] = [:]
+    @ObservationIgnored var hasCustomAntigravityLinkLoader: Bool = false
     @ObservationIgnored var antigravityLinkLoader: @Sendable () -> [String: AntigravitySubagentLink] = {
         AntigravitySubagentIndex.loadLinks()
+    } {
+        didSet { hasCustomAntigravityLinkLoader = true }
+    }
+    @ObservationIgnored var antigravitySyncLinkLoader: @Sendable () -> [String: AntigravitySubagentLink] = {
+        AntigravitySubagentIndex.loadLinks(maxRecentDirectories: 24)
     }
     @ObservationIgnored var antigravityDirectSubagentLinkLoader: @Sendable (String) -> AntigravitySubagentLink? = { sessionId in
         AntigravitySubagentIndex.loadInvokeSubagentLink(forSessionId: sessionId)

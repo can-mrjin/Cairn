@@ -34,6 +34,11 @@ public enum CoworkAuditEvent: Equatable, Sendable {
     /// `terminal_reason` says it was aborted; it is not a failure, and
     /// `isError` is then false.
     case turnEnded(isError: Bool, resultText: String?, interrupted: Bool = false)
+    /// Claude Desktop 3P appends a small `command_lifecycle` record with
+    /// `"state":"completed"` / `"failed"` / `"cancelled"` right after `result`.
+    /// Acts as a fallback turn-end signal if a prior `result` line was absent,
+    /// without double-counting when `result` already settled the turn idle.
+    case commandLifecycleEnded(isError: Bool, interrupted: Bool)
     case ignored
 
     public struct ToolUse: Equatable, Sendable {
@@ -118,6 +123,21 @@ public enum CoworkAuditParser {
                 // pings: none of them change whether the turn is running.
                 return .ignored
             }
+        case "command_lifecycle":
+            guard let json = parse(line),
+                  let state = (json["state"] as? String)?.lowercased() else {
+                return .ignored
+            }
+            switch state {
+            case "completed", "done", "finished":
+                return .commandLifecycleEnded(isError: false, interrupted: false)
+            case "aborted", "cancelled", "canceled", "interrupted", "stopped":
+                return .commandLifecycleEnded(isError: false, interrupted: true)
+            case "failed", "error":
+                return .commandLifecycleEnded(isError: true, interrupted: false)
+            default:
+                return .ignored
+            }
         default:
             return .ignored
         }
@@ -150,6 +170,10 @@ public enum CoworkAuditParser {
     private static let toolResultMarker = Data(#""type":"tool_result""#.utf8)
     private static let toolUseMarker = Data(#""type":"tool_use""#.utf8)
     private static let isErrorTrueMarker = Data(#""is_error":true"#.utf8)
+    /// Claude Desktop 3P serializes `result` lines with `"type":"result"` near
+    /// the end of the object (after the full `"result"` payload), so oversized
+    /// result lines (>512 KB) miss both `typePrefix` and `parse(_:)`.
+    private static let resultTypeMarker = Data(#""type":"result""#.utf8)
     /// The CLI's own "was this turn aborted" test (shared by the Claude Code
     /// build Claude Desktop runs and by Claude Desktop itself) is
     /// `aborted_streaming` or `aborted_tools` — stopped mid-reply or while a
@@ -160,7 +184,9 @@ public enum CoworkAuditParser {
     /// Every audit record is written as `{"type":"…",…}` — SDK messages lead with
     /// `type`, and Claude Desktop's own records are object literals with `type`
     /// first. Reading the value straight off the prefix keeps megabyte-sized
-    /// tool results out of the JSON parser; anything else falls back to a parse.
+    /// tool results out of the JSON parser; anything else falls back to a parse
+    /// (and for oversized `result` lines whose `"type":"result"` sits after the
+    /// payload, to a byte-marker check).
     static func topLevelType(_ line: Data) -> String? {
         if line.starts(with: typePrefix) {
             let valueStart = line.startIndex + typePrefix.count
@@ -169,7 +195,13 @@ public enum CoworkAuditParser {
                 return String(data: line[valueStart..<quote], encoding: .utf8)
             }
         }
-        return parse(line)?["type"] as? String
+        if let parsedType = parse(line)?["type"] as? String {
+            return parsedType
+        }
+        if line.count > maxParsedLineBytes, line.range(of: resultTypeMarker) != nil {
+            return "result"
+        }
+        return nil
     }
 
     private static func parse(_ line: Data) -> [String: Any]? {
@@ -317,6 +349,15 @@ public struct CoworkAuditState: Equatable, Sendable {
             lastTurnFailed = isError && !interrupted
             lastTurnInterrupted = interrupted
             lastResultText = resultText
+
+        case .commandLifecycleEnded(let isError, let interrupted):
+            guard phase != .idle else { break }
+            phase = .idle
+            pendingPermissions.removeAll()
+            currentTool = nil
+            completedTurnCount += 1
+            lastTurnFailed = isError && !interrupted
+            lastTurnInterrupted = interrupted
 
         case .ignored:
             break

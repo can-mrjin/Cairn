@@ -194,14 +194,19 @@ extension AppState {
     /// in is gone — quit, crashed or restarted, none of which Claude Desktop
     /// logs — or once it has been silent past `coworkSilenceTimeout`.
     func settleCoworkCards(now: Date = Date()) {
+        var hasActiveCowork = false
         for (key, session) in sessions
             where key.hasPrefix(Self.coworkSessionPrefix) && session.status != .idle {
+            hasActiveCowork = true
             let hostGone = coworkTurnHosts[key].map { !ProcessTable.isLiveProcess($0) } ?? false
             let timedOut = Self.coworkSilenceTimeout(status: session.status)
                 .map { now.timeIntervalSince(session.lastActivity) > $0 } ?? false
             if hostGone || timedOut {
                 settleCoworkCard(key)
             }
+        }
+        if hasActiveCowork {
+            coworkWatcher?.reconcileActiveSessions()
         }
         if !coworkTurnHosts.isEmpty {
             coworkTurnHosts = coworkTurnHosts.filter { key, _ in

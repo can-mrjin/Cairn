@@ -276,4 +276,26 @@ final class CoworkAuditLogTests: XCTestCase {
         state.apply(event(Self.resultSuccess))
         XCTAssertFalse(state.lastTurnInterrupted)
     }
+
+    func testOversizedThirdPartyResultLineStillEndsTurn() {
+        let padding = String(repeating: "x", count: CoworkAuditParser.maxParsedLineBytes + 128)
+        let line = #"{"duration_api_ms":710322,"stop_reason":"end_turn","is_error":false,"result":""# + padding + #"","type":"result","subtype":"success"}"#
+        let parsed = event(line)
+        XCTAssertEqual(parsed, .turnEnded(isError: false, resultText: nil, interrupted: false))
+    }
+
+    func testCommandLifecycleCompletedSettlesFallbackWithoutDoubleCounting() {
+        let completedLifecycle = #"{"type":"command_lifecycle","command_uuid":"c1","state":"completed"}"#
+        // Normal pair: result settles first, command_lifecycle is a no-op.
+        let normal = self.state(after: [Self.userPrompt, Self.resultSuccess, completedLifecycle])
+        XCTAssertEqual(normal.phase, .idle)
+        XCTAssertEqual(normal.completedTurnCount, 1)
+
+        // Fallback when result was missing: command_lifecycle settles the in-flight turn.
+        let fallback = self.state(after: [Self.userPrompt, completedLifecycle])
+        XCTAssertEqual(fallback.phase, .idle)
+        XCTAssertEqual(fallback.completedTurnCount, 1)
+        XCTAssertFalse(fallback.lastTurnFailed)
+        XCTAssertFalse(fallback.lastTurnInterrupted)
+    }
 }

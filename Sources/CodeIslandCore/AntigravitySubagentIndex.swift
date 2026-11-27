@@ -141,24 +141,53 @@ public enum AntigravitySubagentIndex {
     /// Scans `<brainRoot>/*/.system_generated/swarm/members.json` and, for any
     /// active `candidateSessionIds` not present in Swarm rosters, checks O(1)
     /// `invoke_subagent` parent-agent message records.
+    ///
+    /// Pass `maxRecentDirectories` to bound synchronous main-thread lookups to
+    /// the N most recently modified conversation directories via a single
+    /// `getattrlistbulk` directory enumeration.
     public static func loadLinks(
         brainRoot: String? = nil,
-        candidateSessionIds: [String] = []
+        candidateSessionIds: [String] = [],
+        maxRecentDirectories: Int? = nil
     ) -> [String: AntigravitySubagentLink] {
         let root = brainRoot ?? defaultBrainRoot
         let fm = FileManager.default
         var links: [String: AntigravitySubagentLink] = [:]
-        if let entries = try? fm.contentsOfDirectory(atPath: root) {
-            for entry in entries.sorted() {
-                guard !entry.isEmpty, !entry.hasPrefix(".") else { continue }
-                let membersPath = "\(root)/\(entry)/.system_generated/swarm/members.json"
-                guard fm.fileExists(atPath: membersPath),
-                      let data = try? Data(contentsOf: URL(fileURLWithPath: membersPath)) else {
-                    continue
-                }
-                for link in parseSwarmMembers(data: data, fallbackParentId: entry) {
-                    links[link.childSessionId] = link
-                }
+        let orderedEntries: [String]
+        if let limit = maxRecentDirectories, limit > 0 {
+            let rootURL = URL(fileURLWithPath: root, isDirectory: true)
+            if let urls = try? fm.contentsOfDirectory(
+                at: rootURL,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                orderedEntries = urls
+                    .map { url -> (name: String, mtime: Date) in
+                        let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                        return (url.lastPathComponent, mtime)
+                    }
+                    .sorted { lhs, rhs in
+                        if lhs.mtime != rhs.mtime { return lhs.mtime > rhs.mtime }
+                        return lhs.name < rhs.name
+                    }
+                    .prefix(limit)
+                    .map(\.name)
+            } else {
+                orderedEntries = []
+            }
+        } else {
+            orderedEntries = ((try? fm.contentsOfDirectory(atPath: root)) ?? []).sorted()
+        }
+
+        for entry in orderedEntries {
+            guard !entry.isEmpty, !entry.hasPrefix(".") else { continue }
+            let membersPath = "\(root)/\(entry)/.system_generated/swarm/members.json"
+            guard fm.fileExists(atPath: membersPath),
+                  let data = try? Data(contentsOf: URL(fileURLWithPath: membersPath)) else {
+                continue
+            }
+            for link in parseSwarmMembers(data: data, fallbackParentId: entry) {
+                links[link.childSessionId] = link
             }
         }
         for candidateId in candidateSessionIds where links[candidateId] == nil {

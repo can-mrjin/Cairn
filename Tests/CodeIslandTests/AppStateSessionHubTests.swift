@@ -722,6 +722,7 @@ final class AppStateSessionHubTests: XCTestCase {
             SettingsKey.soundTaskComplete,
             SettingsKey.soundTaskError,
             SettingsKey.soundSessionStart,
+            SettingsKey.soundPromptSubmit,
             SettingsKey.quietHoursEnabled,
             SettingsKey.autoMuteWhenAway,
             SettingsKey.smartSuppress,
@@ -747,6 +748,7 @@ final class AppStateSessionHubTests: XCTestCase {
         UserDefaults.standard.set(true, forKey: SettingsKey.soundTaskComplete)
         UserDefaults.standard.set(true, forKey: SettingsKey.soundTaskError)
         UserDefaults.standard.set(true, forKey: SettingsKey.soundSessionStart)
+        UserDefaults.standard.set(false, forKey: SettingsKey.soundPromptSubmit)
         UserDefaults.standard.set(false, forKey: SettingsKey.quietHoursEnabled)
         UserDefaults.standard.set(false, forKey: SettingsKey.autoMuteWhenAway)
         UserDefaults.standard.set(false, forKey: SettingsKey.smartSuppress)

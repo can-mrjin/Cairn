@@ -127,6 +127,15 @@ final class SessionListOrderingTests: XCTestCase {
     func testAppStateOrdersStablyByPinnedAndCreationTime() async throws {
         // Cards stay locked to pinned -> newest creation time (`startTime` descending)
         // -> `sessionId` ascending even when an older session queues an approval request.
+        let savedHubState = UserDefaults.standard.object(forKey: SettingsKey.sessionHubStateJSON)
+        UserDefaults.standard.removeObject(forKey: SettingsKey.sessionHubStateJSON)
+        defer {
+            if let savedHubState {
+                UserDefaults.standard.set(savedHubState, forKey: SettingsKey.sessionHubStateJSON)
+            } else {
+                UserDefaults.standard.removeObject(forKey: SettingsKey.sessionHubStateJSON)
+            }
+        }
         let state = AppState()
         let now = Date()
         state.sessions = [

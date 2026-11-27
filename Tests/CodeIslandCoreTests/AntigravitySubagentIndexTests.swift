@@ -238,6 +238,35 @@ final class AntigravitySubagentIndexTests: XCTestCase {
         XCTAssertTrue(AntigravitySubagentIndex.defaultBrainRoot.hasSuffix("/.gemini/antigravity/brain"))
     }
 
+    func testLoadLinksMaxRecentDirectoriesLimitsScanToNewestEntries() throws {
+        let fm = FileManager.default
+        let root = NSTemporaryDirectory() + "ag-brain-recent-" + UUID().uuidString
+        defer { try? fm.removeItem(atPath: root) }
+
+        let olderDir = "\(root)/older-swarm"
+        let newerDir = "\(root)/newer-swarm"
+        try fm.createDirectory(atPath: "\(olderDir)/.system_generated/swarm", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: "\(newerDir)/.system_generated/swarm", withIntermediateDirectories: true)
+
+        try Data("""
+        {"title":"Old","members":{"coordinator":{"conversation_id":"older-parent"},"w":{"conversation_id":"older-child"}}}
+        """.utf8).write(to: URL(fileURLWithPath: "\(olderDir)/.system_generated/swarm/members.json"))
+        try Data("""
+        {"title":"New","members":{"coordinator":{"conversation_id":"newer-parent"},"w":{"conversation_id":"newer-child"}}}
+        """.utf8).write(to: URL(fileURLWithPath: "\(newerDir)/.system_generated/swarm/members.json"))
+
+        try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: olderDir)
+        try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: 2_000)], ofItemAtPath: newerDir)
+
+        let bounded = AntigravitySubagentIndex.loadLinks(brainRoot: root, maxRecentDirectories: 1)
+        XCTAssertEqual(bounded["newer-child"]?.parentSessionId, "newer-parent")
+        XCTAssertNil(bounded["older-child"])
+
+        let full = AntigravitySubagentIndex.loadLinks(brainRoot: root)
+        XCTAssertEqual(full["newer-child"]?.parentSessionId, "newer-parent")
+        XCTAssertEqual(full["older-child"]?.parentSessionId, "older-parent")
+    }
+
     // MARK: - ChildAgentNotificationPolicy
 
     func testChildAgentNotificationPolicyRootOnly() {

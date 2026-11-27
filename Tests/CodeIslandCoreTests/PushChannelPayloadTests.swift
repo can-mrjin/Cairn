@@ -47,7 +47,7 @@ final class PushChannelPayloadTests: XCTestCase {
         XCTAssertEqual(body["subtitle"] as? String, "Needs approval: Bash")
         XCTAssertEqual(body["body"] as? String, "git push --force")
         XCTAssertEqual(body["level"] as? String, "timeSensitive")
-        XCTAssertEqual(body["group"] as? String, "CodeIsland")
+        XCTAssertEqual(body["group"] as? String, "Cairn")
         XCTAssertNil(body["icon"])
         XCTAssertNil(body["sound"])
     }
@@ -204,7 +204,7 @@ final class PushChannelPayloadTests: XCTestCase {
 
         XCTAssertEqual(body["msgtype"] as? String, "text")
         let content = try XCTUnwrap((body["text"] as? [String: Any])?["content"] as? String)
-        XCTAssertEqual(content, "🔐 Claude · vibe-notch\nNeeds approval: Bash\ngit push --force\n— CodeIsland")
+        XCTAssertEqual(content, "🔐 Claude · vibe-notch\nNeeds approval: Bash\ngit push --force\n— Cairn")
     }
 
     func testDingTalkReplacesAStaleSignatureAndLeavesUnsignedURLsAlone() throws {
@@ -238,7 +238,7 @@ final class PushChannelPayloadTests: XCTestCase {
         XCTAssertEqual(post["title"] as? String, "🔐 Claude · vibe-notch")
         let paragraphs = try XCTUnwrap(post["content"] as? [[[String: Any]]])
         let lines = paragraphs.compactMap { $0.first?["text"] as? String }
-        XCTAssertEqual(lines, ["Needs approval: Bash", "git push --force", "— CodeIsland"])
+        XCTAssertEqual(lines, ["Needs approval: Bash", "git push --force", "— Cairn"])
         XCTAssertTrue(paragraphs.allSatisfy { $0.first?["tag"] as? String == "text" })
     }
 

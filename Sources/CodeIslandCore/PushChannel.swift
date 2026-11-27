@@ -233,10 +233,10 @@ public struct PushHTTPRequest: Equatable, Sendable {
 }
 
 public enum PushRequestBuilder {
-    public static let userAgent = "CodeIsland-Push/1.0"
+    public static let userAgent = "Cairn-Push/1.0"
     /// Footer on group-chat bots, so DingTalk / Feishu "custom keyword"
-    /// security can be satisfied with the keyword "CodeIsland".
-    public static let keywordFooter = "— CodeIsland"
+    /// security can be satisfied with the keyword "Cairn".
+    public static let keywordFooter = "— Cairn"
 
     /// Bark relays through APNs, whose payload limit is 4096 bytes in total
     /// — title, subtitle, group and bark-server's own fields included — so
@@ -303,7 +303,7 @@ public enum PushRequestBuilder {
             "device_key": deviceKey,
             "title": PushMessageFormatter.truncated(message.title, limit: barkTitleLimit),
             "level": message.blocksAgent ? "timeSensitive" : "active",
-            "group": nonEmpty(channel.group) ?? "CodeIsland",
+            "group": nonEmpty(channel.group) ?? "Cairn",
         ]
         let headline = PushMessageFormatter.truncated(message.headline, limit: barkSubtitleLimit)
         // Bark requires a body; an empty one falls back to the headline.

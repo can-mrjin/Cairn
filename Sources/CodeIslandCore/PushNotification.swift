@@ -195,7 +195,7 @@ public struct PushStrings: Equatable, Sendable {
         secretQuestion: "Sensitive prompt — answer it on your Mac.",
         moreOptions: "+%d more",
         testHeadline: "Test notification",
-        testBody: "If you can read this, CodeIsland can reach you here.",
+        testBody: "If you can read this, Cairn can reach you here.",
         answerIn: "Respond in %@.",
         answerOnMac: "Respond on your Mac."
     )
@@ -241,8 +241,8 @@ public struct PushMessage: Equatable, Sendable {
     public static func test(strings: PushStrings) -> PushMessage {
         PushMessage(
             kind: .permission,
-            sessionId: "codeisland-test",
-            title: "🔔 CodeIsland",
+            sessionId: "cairn-test",
+            title: "🔔 Cairn",
             headline: strings.testHeadline,
             body: strings.testBody
         )

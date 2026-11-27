@@ -130,6 +130,12 @@ struct TerminalActivator {
         return activationGeneration
     }
 
+    static func currentActivationGeneration() -> UInt64 {
+        activationGenerationLock.lock()
+        defer { activationGenerationLock.unlock() }
+        return activationGeneration
+    }
+
     static func isCurrentActivationGeneration(_ generation: UInt64) -> Bool {
         activationGenerationLock.lock()
         defer { activationGenerationLock.unlock() }
@@ -1334,6 +1340,7 @@ struct TerminalActivator {
             return
         }
 
+        let generation = Self.currentActivationGeneration()
         let wasFrontmost = app.isActive
         if app.isHidden { app.unhide() }
         app.activate(options: [.activateAllWindows])
@@ -1342,7 +1349,8 @@ struct TerminalActivator {
         // and running off the main thread keeps notch collapse frame 1 stall-free.
         if !wasFrontmost {
             DispatchQueue.global(qos: .userInteractive).async {
-                guard let url = Self.appURL(forBundleId: bundleId) else { return }
+                guard Self.isCurrentActivationGeneration(generation),
+                      let url = Self.appURL(forBundleId: bundleId) else { return }
                 let cfg = NSWorkspace.OpenConfiguration()
                 cfg.activates = true
                 NSWorkspace.shared.openApplication(at: url, configuration: cfg)
@@ -1355,9 +1363,11 @@ struct TerminalActivator {
         let appName = app.localizedName ?? "Application"
         let runner = AppleScriptRunner.current
         DispatchQueue.global(qos: .userInteractive).async {
+            guard Self.isCurrentActivationGeneration(generation) else { return }
             if Self.raiseWindowViaAX(pid: pid, matchingFolder: folderName) {
                 return
             }
+            guard Self.isCurrentActivationGeneration(generation) else { return }
             let escapedFolder = escapeAppleScript(folderName)
             let script = """
             tell application "System Events"
@@ -1554,6 +1564,7 @@ struct TerminalActivator {
     }
 
     private static func activateByBundleId(_ bundleId: String) {
+        let generation = Self.currentActivationGeneration()
         if let app = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == bundleId
         }) {
@@ -1563,7 +1574,8 @@ struct TerminalActivator {
         // Also use openApplication for reliable Space switching (Electron apps like VSCode),
         // off the main thread so LaunchServices IPC never stalls UI collapse animations.
         DispatchQueue.global(qos: .userInteractive).async {
-            guard let url = Self.appURL(forBundleId: bundleId) else { return }
+            guard Self.isCurrentActivationGeneration(generation),
+                  let url = Self.appURL(forBundleId: bundleId) else { return }
             NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         }
     }
@@ -1574,13 +1586,15 @@ struct TerminalActivator {
     /// `NSWorkspace.openApplication` is safe across all parent terminals (Ghostty, iTerm2,
     /// WezTerm, Kaku, kitty, Warp, Terminal.app, cmux) and still handles Space switching.
     private static func raiseAppWithoutQuickTerminal(bundleId: String) {
+        let generation = Self.currentActivationGeneration()
         if let app = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleIdentifier == bundleId
         }) {
             if app.isHidden { app.unhide() }
         }
         DispatchQueue.global(qos: .userInteractive).async {
-            guard let url = Self.appURL(forBundleId: bundleId) else { return }
+            guard Self.isCurrentActivationGeneration(generation),
+                  let url = Self.appURL(forBundleId: bundleId) else { return }
             NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         }
     }

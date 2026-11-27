@@ -283,10 +283,10 @@ class PanelWindowController: NSObject, NSWindowDelegate {
                 let newSurface = self.appState.surface
                 let surfaceChanged = newSurface != self.lastObservedSurface
                 self.lastObservedSurface = newSurface
-                self.updateVisibility()
                 if surfaceChanged {
                     self.handleSurfaceTransitionForHover(newSurface)
                 }
+                self.updateVisibility()
                 self.armSessionObservation()
             }
         }

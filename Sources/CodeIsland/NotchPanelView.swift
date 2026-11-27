@@ -1403,11 +1403,6 @@ private struct CompactRightWing: View {
                 // 1) Waiting question / approval badge
                 // 2) Active working/thinking label for the latest priority conversation
                 // 3) Simple glowing green dot when unread/finished
-                let hasWaitingBadge = appState.hiddenPendingQuestionSessionId != nil
-                    || appState.followUps.hintActive
-                    || appState.status == .waitingApproval
-                    || appState.status == .waitingQuestion
-
                 if appState.hiddenPendingQuestionSessionId != nil {
                     Image(systemName: "questionmark.bubble.fill")
                         .font(.system(size: 10, weight: .bold))
@@ -1543,6 +1538,10 @@ private struct GPUShimmerTextView: NSViewRepresentable {
     func updateNSView(_ nsView: GPUShimmerHostNSView, context: Context) {
         nsView.configure(text: text, color: nsColor, font: font, animate: animate)
     }
+
+    static func dismantleNSView(_ nsView: GPUShimmerHostNSView, coordinator: ()) {
+        nsView.stopShimmer()
+    }
 }
 
 private final class GPUShimmerHostNSView: NSView {
@@ -1601,6 +1600,11 @@ private final class GPUShimmerHostNSView: NSView {
             gradientLayer.locations = [0.0, 0.25, 0.42, 0.50, 0.58, 0.75, 1.0]
             gradientLayer.add(anim, forKey: "shimmerSweep")
         }
+    }
+
+    func stopShimmer() {
+        wantsAnimation = false
+        gradientLayer.removeAnimation(forKey: "shimmerSweep")
     }
 
     func configure(text: String, color: NSColor, font: NSFont, animate: Bool) {
@@ -3971,11 +3975,17 @@ private struct SessionListView: View {
             }
 
             if onlySessionId == nil && totalSessionCount == 0 {
+                let hasAnySessions = !appState.sessions.isEmpty
+                let isZh = l10n.effectiveLanguage.hasPrefix("zh")
+                let emptyIcon = hasAnySessions ? "line.3.horizontal.decrease.circle" : "tray"
+                let emptyMessage = hasAnySessions
+                    ? (isZh ? "没有匹配的会话" : "No matching sessions")
+                    : (isZh ? "暂无活跃会话" : "No active sessions")
                 HStack(spacing: 8) {
-                    Image(systemName: "tray")
+                    Image(systemName: emptyIcon)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.38))
-                    Text(l10n.effectiveLanguage.hasPrefix("zh") ? "暂无活跃会话" : "No active sessions")
+                    Text(emptyMessage)
                         .font(.system(size: max(11, fontSize - 0.5), weight: .medium))
                         .foregroundStyle(.white.opacity(0.46))
                 }
@@ -5148,8 +5158,9 @@ private struct SessionCard: View {
     private var isMinimalRow: Bool { density == .minimal && !isCompletion }
     private var chipFontSize: CGFloat { SessionStatusChip.fontSize(content: fontSize) }
     private var buttonFontSize: CGFloat { max(10, fontSize) }
-    @AppStorage(SettingsKey.panelAccentTheme) private var panelAccentThemeRaw = SettingsDefaults.panelAccentTheme
-    private var accentColor: Color { PanelAccentTheme(storedValue: panelAccentThemeRaw).color }
+    /// Matches `SessionHubPalette.unreadAccent` (`● 未读` badge and filter tab)
+    /// so unread cards stand out as one unified visual language.
+    private static let unreadFrameColor = Color(red: 0.28, green: 0.80, blue: 1.0)
 
     /// What the card's live row shows: the running tool, or that the model is
     /// thinking. A card waiting on you shows its request instead, so only a
@@ -5215,7 +5226,8 @@ private struct SessionCard: View {
 
     private var minimalBody: some View {
         let isUnread = appState.isSessionUnread(sessionId)
-        let dotColor: Color = (isUnread && cardStatus == .idle) ? accentColor : cardStatus.color
+        let isRestingUnread = isUnread && (cardStatus == .idle || cardStatus == .done)
+        let dotColor: Color = isRestingUnread ? Self.unreadFrameColor : cardStatus.color
         let needsAttention = (session.status == .waitingApproval && approvalQueueIndex != nil)
             || showsExternalCursorQuestion
             || showsQuestionWaitingRow
@@ -5224,7 +5236,7 @@ private struct SessionCard: View {
                 Circle()
                     .fill(dotColor)
                     .frame(width: 6.5, height: 6.5)
-                    .shadow(color: cardStatus == .idle && !isUnread ? .clear : dotColor.opacity(0.6), radius: 2)
+                    .shadow(color: (cardStatus == .idle || cardStatus == .done) && !isUnread ? .clear : dotColor.opacity(0.7), radius: 2.5)
                 MascotView(source: session.mascotSource, status: session.effectiveDisplayStatus, size: 16, animate: false)
                     .frame(width: 18)
                 SessionIdentityLine(
@@ -5367,14 +5379,15 @@ private struct SessionCard: View {
     /// Clean Vibe Island-style header: subtle status dot, crisp SF Pro title, calm right metadata.
     private var comfortableHeader: some View {
         let isUnread = appState.isSessionUnread(sessionId)
-        let dotColor: Color = (isUnread && cardStatus == .idle)
-            ? accentColor
+        let isRestingUnread = isUnread && (cardStatus == .idle || cardStatus == .done)
+        let dotColor: Color = isRestingUnread
+            ? Self.unreadFrameColor
             : cardStatus.color
         return HStack(alignment: .center, spacing: 6) {
             Circle()
                 .fill(dotColor)
                 .frame(width: 7, height: 7)
-                .shadow(color: cardStatus == .idle && !isUnread ? .clear : dotColor.opacity(0.6), radius: 2.5)
+                .shadow(color: (cardStatus == .idle || cardStatus == .done) && !isUnread ? .clear : dotColor.opacity(0.75), radius: 3)
                 .accessibilityLabel(cardStatus.label)
                 .layoutPriority(3)
 
@@ -5781,19 +5794,26 @@ private struct SessionCard: View {
 
     // MARK: Shared
 
-    /// Card fill with the status rail down its leading edge.
+    /// Card fill with a full-perimeter colored highlight frame for unread conversations.
     private func cardBackground(cornerRadius: CGFloat, tint: Color? = nil) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius + 2, style: .continuous)
         let isUnread = appState.isSessionUnread(sessionId)
         return ZStack(alignment: .leading) {
-            shape.fill(hovering ? Color.white.opacity(0.07) : Color.white.opacity(isUnread ? 0.038 : 0.018))
+            shape.fill(hovering ? Color.white.opacity(0.07) : Color.white.opacity(isUnread ? 0.045 : 0.018))
+            if isUnread {
+                shape.fill(
+                    LinearGradient(
+                        colors: [
+                            Self.unreadFrameColor.opacity(hovering ? 0.16 : 0.12),
+                            Self.unreadFrameColor.opacity(hovering ? 0.08 : 0.045),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            }
             if let tint {
                 shape.fill(tint)
-            }
-            if isUnread && cardStatus == .idle {
-                Rectangle()
-                    .fill(accentColor.opacity(0.85))
-                    .frame(width: 2)
             }
         }
         .clipShape(shape)
@@ -5801,10 +5821,21 @@ private struct SessionCard: View {
             if markedForRemoval {
                 shape.strokeBorder(IdleSessionRemovalBanner.tint.opacity(0.8),
                                    style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            } else if isUnread {
+                shape.strokeBorder(
+                    Self.unreadFrameColor.opacity(hovering ? 0.96 : 0.82),
+                    lineWidth: 1.5
+                )
             } else {
                 shape.strokeBorder(Color.white.opacity(hovering ? 0.10 : 0.035), lineWidth: 0.5)
             }
         }
+        .shadow(
+            color: (!markedForRemoval && isUnread) ? Self.unreadFrameColor.opacity(hovering ? 0.30 : 0.20) : .clear,
+            radius: 4,
+            x: 0,
+            y: 0
+        )
         .accessibilityHidden(true)
     }
 
