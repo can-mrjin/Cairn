@@ -67,9 +67,10 @@ final class HoverAndDisplaySettingsTests: XCTestCase {
         let fastGrow = NotchSilhouetteTiming.profile(for: .growing, speed: 2.0)
         let slowGrow = NotchSilhouetteTiming.profile(for: .growing, speed: 0.5)
 
-        XCTAssertEqual(normalGrow.widthDuration, 0.38, accuracy: 0.0001)
-        XCTAssertEqual(normalGrow.heightDuration, 0.32, accuracy: 0.0001)
-        XCTAssertEqual(normalGrow.sampleDuration, 0.52, accuracy: 0.0001)
+        XCTAssertEqual(normalGrow.widthDuration, 0.30, accuracy: 0.0001)
+        XCTAssertEqual(normalGrow.heightDuration, 0.34, accuracy: 0.0001)
+        XCTAssertEqual(normalGrow.sampleDuration, 0.44, accuracy: 0.0001)
+        XCTAssertLessThan(normalGrow.widthDuration, normalGrow.heightDuration, "width should lead height to avoid horizontal text clipping while opening")
 
         XCTAssertEqual(fastGrow.widthDuration, normalGrow.widthDuration / 2.0, accuracy: 0.0001)
         XCTAssertEqual(fastGrow.heightDuration, normalGrow.heightDuration / 2.0, accuracy: 0.0001)

@@ -281,16 +281,25 @@ struct NotchPanelView: View {
     @State private var rightWingWidth: CGFloat = 0
 
     private var isActive: Bool { !appState.sessions.isEmpty }
+    /// Auto-hidden resting mode (`hideWhenNoSession` active with 0 running sessions):
+    /// when collapsed, the silhouette stays tucked flush inside the physical hardware
+    /// notch (`notchW`, shoulder 0) instead of flashing a wide collapsed bar before
+    /// expanding or leaving an empty black pill behind before ordering out.
+    private var isAutoHiddenAtNotch: Bool {
+        hideWhenNoSession && appState.activeSessionCount == 0
+    }
     /// First launch / no-session state should still render a visible marker so the app
     /// doesn't disappear completely behind the physical notch.
     private var showIdleIndicator: Bool {
         !isActive && !hideWhenNoSession
     }
     /// Whether the bar content should be visible (respects hideWhenNoSession,
-    /// while still allowing hover/expand when the pointer moves onto the notch).
+    /// while still allowing seamless notch-to-expanded bloom on hover).
     private var showBar: Bool {
-        if appState.surface.isExpanded || appState.pointerPrehovering { return true }
-        return isActive && !(hideWhenNoSession && appState.activeSessionCount == 0)
+        if appState.surface.isExpanded { return true }
+        if isAutoHiddenAtNotch { return false }
+        if appState.pointerPrehovering { return true }
+        return isActive
     }
     private var shouldShowExpanded: Bool {
         showBar && appState.surface.isExpanded
@@ -303,12 +312,14 @@ struct NotchPanelView: View {
 
     /// Concave top-shoulder flare radius integrated inside the island silhouette.
     private var silhouetteShoulder: CGFloat {
-        shouldShowExpanded ? 16 : 8
+        if shouldShowExpanded { return 16 }
+        return isAutoHiddenAtNotch ? 0 : 8
     }
 
     /// Bottom corner radius of the unified island silhouette.
     private var silhouetteBottomRadius: CGFloat {
-        shouldShowExpanded ? 24 : 13
+        if shouldShowExpanded { return 24 }
+        return isAutoHiddenAtNotch ? 8 : 13
     }
 
     /// Total rendered width including both top concave shoulders so the entire
@@ -415,6 +426,8 @@ struct NotchPanelView: View {
         let h: CGFloat
         if shouldShowExpanded {
             h = panelHeight
+        } else if isAutoHiddenAtNotch {
+            h = hasNotch ? notchHeight : 0
         } else if shouldShowPrehover {
             h = notchHeight + 2
         } else {
@@ -454,6 +467,7 @@ struct NotchPanelView: View {
     /// expanding from collapsed to expanded inflates evenly outward from center.
     private var panelWidth: CGFloat {
         if shouldShowExpanded { return expandedPanelWidth }
+        if isAutoHiddenAtNotch { return hasNotch ? max(0, notchW - 8) : 0 }
         let nw = effectiveNotchW
         if showIdleIndicator { return idleHovered ? nw + compactWingWidth * 2 + 80 : nw + compactWingWidth * 2 }
         if !isActive { return hasNotch ? nw - 20 : nw }
@@ -620,14 +634,15 @@ struct NotchPanelView: View {
                                             CompactRightWing(appState: appState, expanded: true, hasNotch: hasNotch)
                                         }
                                         .frame(width: expandedPanelWidth, height: notchHeight)
+                                        .scaleEffect(shouldShowExpanded || reduceMotion ? 1.0 : 0.96, anchor: .top)
                                         .opacity(shouldShowExpanded ? 1 : 0)
                                         .animation(
                                             reduceMotion
                                                 ? nil
-                                                : .easeOut(duration: NotchAnimationSpeed.response(
-                                                    base: shouldShowExpanded ? 0.14 : 0.08,
-                                                    speed: notchAnimationSpeed
-                                                )),
+                                                : (shouldShowExpanded
+                                                    ? .easeOut(duration: NotchAnimationSpeed.response(base: 0.16, speed: notchAnimationSpeed))
+                                                        .delay(NotchAnimationSpeed.response(base: 0.06, speed: notchAnimationSpeed))
+                                                    : .easeIn(duration: NotchAnimationSpeed.response(base: 0.06, speed: notchAnimationSpeed))),
                                             value: shouldShowExpanded
                                         )
                                         .allowsHitTesting(shouldShowExpanded)
@@ -825,14 +840,15 @@ struct NotchPanelView: View {
                     // (not the outer silhouette anchor, which starts at an estimate and clamps
                     // to windowHeight — subtracting reply height from that estimate went negative).
                     .recordsCompletionCardChrome(in: cardSpace)
+                    .scaleEffect(shouldShowExpanded || reduceMotion ? 1.0 : 0.95, anchor: .top)
                     .opacity(shouldShowExpanded ? 1 : 0)
                     .animation(
                         reduceMotion
                             ? nil
-                            : .easeOut(duration: NotchAnimationSpeed.response(
-                                base: shouldShowExpanded ? 0.14 : 0.09,
-                                speed: notchAnimationSpeed
-                            )),
+                            : (shouldShowExpanded
+                                ? .easeOut(duration: NotchAnimationSpeed.response(base: 0.18, speed: notchAnimationSpeed))
+                                    .delay(NotchAnimationSpeed.response(base: 0.07, speed: notchAnimationSpeed))
+                                : .easeIn(duration: NotchAnimationSpeed.response(base: 0.07, speed: notchAnimationSpeed))),
                         value: shouldShowExpanded
                     )
                     .allowsHitTesting(shouldShowExpanded)
@@ -5794,24 +5810,12 @@ private struct SessionCard: View {
 
     // MARK: Shared
 
-    /// Card fill with a full-perimeter colored highlight frame for unread conversations.
+    /// Card fill with a clean colored border frame for unread conversations (no interior tint/filter).
     private func cardBackground(cornerRadius: CGFloat, tint: Color? = nil) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius + 2, style: .continuous)
         let isUnread = appState.isSessionUnread(sessionId)
         return ZStack(alignment: .leading) {
-            shape.fill(hovering ? Color.white.opacity(0.07) : Color.white.opacity(isUnread ? 0.045 : 0.018))
-            if isUnread {
-                shape.fill(
-                    LinearGradient(
-                        colors: [
-                            Self.unreadFrameColor.opacity(hovering ? 0.16 : 0.12),
-                            Self.unreadFrameColor.opacity(hovering ? 0.08 : 0.045),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            }
+            shape.fill(hovering ? Color.white.opacity(0.07) : Color.white.opacity(0.018))
             if let tint {
                 shape.fill(tint)
             }
@@ -5823,19 +5827,13 @@ private struct SessionCard: View {
                                    style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
             } else if isUnread {
                 shape.strokeBorder(
-                    Self.unreadFrameColor.opacity(hovering ? 0.96 : 0.82),
+                    Self.unreadFrameColor.opacity(hovering ? 1.0 : 0.85),
                     lineWidth: 1.5
                 )
             } else {
                 shape.strokeBorder(Color.white.opacity(hovering ? 0.10 : 0.035), lineWidth: 0.5)
             }
         }
-        .shadow(
-            color: (!markedForRemoval && isUnread) ? Self.unreadFrameColor.opacity(hovering ? 0.30 : 0.20) : .clear,
-            radius: 4,
-            x: 0,
-            y: 0
-        )
         .accessibilityHidden(true)
     }
 
@@ -5845,8 +5843,9 @@ private struct SessionCard: View {
         // right back up to the notch should immediately arm a fresh dwell expand.
         appState.suppressHoverUntilPointerLeaves = false
 
-        // Collapse immediately on click (zero 120–1080ms stall) so switching
-        // into Claude / Antigravity / Terminal feels crisp and instantaneous.
+        // Collapse immediately on click so the 120 Hz GPU collapse animation is
+        // committed to WindowServer before macOS switches app focus / Spaces.
+        var collapsedForJump = false
         if autoCollapseAfterSessionJump, session.canJumpFromNotch {
             jumpValidationTask?.cancel()
             jumpValidationTask = nil
@@ -5854,6 +5853,7 @@ private struct SessionCard: View {
             case .sessionList, .completionCard:
                 appState.surface = .collapsed
                 appState.cancelCompletionQueue()
+                collapsedForJump = true
             default:
                 break
             }
@@ -5861,8 +5861,17 @@ private struct SessionCard: View {
 
         let targetSession = session
         let targetSessionId = sessionId
-        DispatchQueue.main.async {
-            TerminalActivator.activate(session: targetSession, sessionId: targetSessionId)
+        // Yield 1 display frame (~16ms) when collapsing so Core Animation flushes
+        // the GPU collapse flight to WindowServer before app activation / Space switch
+        // competes for WindowServer focus — eliminates stutter on rapid completion clicks.
+        if collapsedForJump {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) {
+                TerminalActivator.activate(session: targetSession, sessionId: targetSessionId)
+            }
+        } else {
+            DispatchQueue.main.async {
+                TerminalActivator.activate(session: targetSession, sessionId: targetSessionId)
+            }
         }
     }
 

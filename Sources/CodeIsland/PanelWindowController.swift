@@ -24,9 +24,14 @@ private class KeyablePanel: NSPanel {
 private class NotchHostingView<Content: View>: NSHostingView<Content> {
     /// When true, the deferred handler is setting super — don't re-defer.
     private var applyingDeferred = false
+    /// Returns false on surfaces with no text inputs (e.g. `.completionCard`) so
+    /// clicking a card to jump to an app never steals key-window focus first.
+    var shouldBecomeKeyOnMouseDown: (() -> Bool)?
 
     override func mouseDown(with event: NSEvent) {
-        window?.makeKey()
+        if shouldBecomeKeyOnMouseDown?() ?? true {
+            window?.makeKey()
+        }
         super.mouseDown(with: event)
     }
 
@@ -482,6 +487,11 @@ class PanelWindowController: NSObject, NSWindowDelegate {
             }
         )
         let contentView = NotchHostingView(rootView: rootView)
+        contentView.shouldBecomeKeyOnMouseDown = { [weak self] in
+            guard let surface = self?.appState.surface else { return true }
+            if case .completionCard = surface { return false }
+            return true
+        }
         contentView.wantsLayer = true
         contentView.sizingOptions = []
         contentView.translatesAutoresizingMaskIntoConstraints = true

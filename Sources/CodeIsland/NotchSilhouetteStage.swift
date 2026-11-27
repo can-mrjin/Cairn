@@ -59,12 +59,14 @@ enum NotchSilhouetteTiming {
                 sampleDuration: 0.22 / speed
             )
         case .growing:
+            // Width leads height slightly so the liquid shell opens horizontally
+            // before dropping down — preventing tall-and-narrow text clipping mid-flight.
             return NotchSilhouetteTimingProfile(
-                widthDuration: 0.38 / speed,
-                widthBounce: 0.22,
-                heightDuration: 0.32 / speed,
-                heightBounce: 0.18,
-                sampleDuration: 0.52 / speed
+                widthDuration: 0.30 / speed,
+                widthBounce: 0.16,
+                heightDuration: 0.34 / speed,
+                heightBounce: 0.14,
+                sampleDuration: 0.44 / speed
             )
         case .shrinking:
             return NotchSilhouetteTimingProfile(
@@ -357,11 +359,17 @@ final class NotchSilhouetteStageView: NSView {
         guard let target = currentTarget else { return super.hitTest(point) }
         let local = convert(point, from: superview)
         let visual = activeFlight?.interpolated(at: CACurrentMediaTime()) ?? target
+        // When expanding (e.g. a completion card popping out and the user clicks it
+        // immediately), accept hits anywhere inside the destination rect as well as
+        // the current visual rect so fast clicks never miss mid-animation.
+        let effectiveW = target.expanded ? max(visual.totalWidth, target.totalWidth) : visual.totalWidth
+        let effectiveH = target.expanded ? max(visual.height, target.height) : visual.height
+        let effectiveOffsetX = target.expanded ? target.offsetX : visual.offsetX
         let hitRect = CGRect(
-            x: bounds.midX + visual.offsetX - visual.totalWidth / 2 - 4,
-            y: bounds.height - visual.height - 6,
-            width: visual.totalWidth + 8,
-            height: visual.height + 6
+            x: bounds.midX + effectiveOffsetX - effectiveW / 2 - 4,
+            y: bounds.height - effectiveH - 6,
+            width: effectiveW + 8,
+            height: effectiveH + 6
         )
         guard hitRect.contains(local) else { return nil }
         return super.hitTest(point)

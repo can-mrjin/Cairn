@@ -452,21 +452,25 @@ extension AppState {
     /// Shared by Cowork cards and Code-tab sessions. Runs LaunchServices calls
     /// cleanly off the main thread so clicking a card never stalls the UI.
     nonisolated static func openInClaudeDesktop(_ deepLink: URL?, fallbackDeepLink: URL? = nil) {
+        let generation = TerminalActivator.currentActivationGeneration()
         let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: claudeDesktopBundleId).first
-        if let app = runningApp {
+        let alreadyFrontmost = runningApp?.isActive == true
+        if let app = runningApp, !alreadyFrontmost {
             if app.isHidden { app.unhide() }
             app.activate(options: [.activateAllWindows])
         }
         DispatchQueue.global(qos: .userInteractive).async {
+            guard TerminalActivator.isCurrentActivationGeneration(generation) else { return }
             let workspace = NSWorkspace.shared
             guard let appURL = TerminalActivator.appURL(forBundleId: claudeDesktopBundleId) else {
                 return
             }
             let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = true
+            configuration.activates = !alreadyFrontmost
 
             guard let deepLink else {
                 if runningApp == nil {
+                    configuration.activates = true
                     workspace.openApplication(at: appURL, configuration: configuration)
                 }
                 return
@@ -474,17 +478,23 @@ extension AppState {
 
             if runningApp != nil {
                 workspace.open([deepLink], withApplicationAt: appURL, configuration: configuration) { _, error in
-                    guard error != nil, let fallbackDeepLink else { return }
+                    guard error != nil,
+                          let fallbackDeepLink,
+                          TerminalActivator.isCurrentActivationGeneration(generation) else { return }
                     let fallbackConfig = NSWorkspace.OpenConfiguration()
-                    fallbackConfig.activates = true
+                    fallbackConfig.activates = !alreadyFrontmost
                     NSWorkspace.shared.open([fallbackDeepLink], withApplicationAt: appURL, configuration: fallbackConfig)
                 }
             } else {
+                configuration.activates = true
                 workspace.openApplication(at: appURL, configuration: configuration) { _, _ in
+                    guard TerminalActivator.isCurrentActivationGeneration(generation) else { return }
                     let openConfig = NSWorkspace.OpenConfiguration()
                     openConfig.activates = true
                     NSWorkspace.shared.open([deepLink], withApplicationAt: appURL, configuration: openConfig) { _, error in
-                        guard error != nil, let fallbackDeepLink else { return }
+                        guard error != nil,
+                              let fallbackDeepLink,
+                              TerminalActivator.isCurrentActivationGeneration(generation) else { return }
                         let fallbackConfig = NSWorkspace.OpenConfiguration()
                         fallbackConfig.activates = true
                         NSWorkspace.shared.open([fallbackDeepLink], withApplicationAt: appURL, configuration: fallbackConfig)
