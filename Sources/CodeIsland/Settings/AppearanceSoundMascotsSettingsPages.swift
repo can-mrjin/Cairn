@@ -406,7 +406,7 @@ private struct AppearancePreview: View {
 
                     HStack(spacing: 4) {
                         if showProjectName {
-                            Text("FlowIsland")
+                            Text("Cairn")
                                 .font(.system(size: fs + 2.5, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.95))
                         }
@@ -560,7 +560,7 @@ private struct AppearancePreview: View {
             Circle().fill(accent).frame(width: 6.5, height: 6.5)
             MascotView(source: "claude", status: .running, size: 18, animate: false)
                 .frame(width: 22)
-            Text(showProjectName ? "FlowIsland" : "Refactor auth flow")
+            Text(showProjectName ? "Cairn" : "Refactor auth flow")
                 .font(.system(size: fs + 1, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.94))
                 .lineLimit(1)
@@ -586,7 +586,7 @@ private struct AppearancePreview: View {
             Circle().fill(accent).frame(width: 6.5, height: 6.5)
             MascotView(source: "claude", status: .running, size: 16, animate: false)
                 .frame(width: 18)
-            Text(showProjectName ? "FlowIsland · Refactor auth flow" : "Refactor auth flow")
+            Text(showProjectName ? "Cairn · Refactor auth flow" : "Refactor auth flow")
                 .font(.system(size: fs + 1.5, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.94))
                 .lineLimit(1)

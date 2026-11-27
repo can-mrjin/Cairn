@@ -6,7 +6,7 @@ if [ -d /Applications/Xcode.app/Contents/Developer ]; then
     export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 fi
 
-APP_NAME="FlowIsland"
+APP_NAME="Cairn"
 EXECUTABLE_TARGET="CodeIsland"
 BUILD_DIR=".build/release"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"

@@ -17,7 +17,7 @@ struct AboutPage: View {
                         AppLogoView(size: 96)
 
                         VStack(spacing: 6) {
-                            Text("FlowIsland")
+                            Text("Cairn")
                                 .font(.system(size: 24, weight: .bold))
                             FlowValuePill(text: "Version \(AppVersion.current)")
                         }

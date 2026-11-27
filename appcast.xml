@@ -3,9 +3,9 @@
      xmlns:dc="http://purl.org/dc/elements/1.1/"
      version="2.0">
   <channel>
-    <title>FlowIsland</title>
-    <link>https://raw.githubusercontent.com/zepeng-jin/FlowIsland/main/appcast.xml</link>
-    <description>Most recent FlowIsland updates</description>
+    <title>Cairn</title>
+    <link>https://raw.githubusercontent.com/zepeng-jin/Cairn/main/appcast.xml</link>
+    <description>Most recent Cairn updates</description>
     <language>en</language>
   </channel>
 </rss>

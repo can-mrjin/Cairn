@@ -1436,8 +1436,9 @@ private struct CompactRightWing: View {
                 }
 
                 // Clean green dot for unread / newly completed conversations
-                // (halo ring avoids software vImage shadow blur on every redraw).
-                if hasUnreadDot && (compactWorkingText == nil || hasWaitingBadge) {
+                // (always visible on the right wing whenever unread replies exist,
+                // even while another conversation is actively working).
+                if hasUnreadDot {
                     ZStack {
                         Circle()
                             .fill(Color(red: 0.34, green: 0.96, blue: 0.50).opacity(0.26))

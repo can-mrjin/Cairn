@@ -139,26 +139,26 @@ jobs:
 
       - name: Verify ARM64 app binary
         run: |
-          APP_ARCHS="$(lipo -archs .build/dmg-staging/FlowIsland.app/Contents/MacOS/FlowIsland)"
-          HELPER_ARCHS="$(lipo -archs .build/dmg-staging/FlowIsland.app/Contents/Helpers/codeisland-bridge)"
-          SPARKLE_ARCHS="$(lipo -archs .build/dmg-staging/FlowIsland.app/Contents/Frameworks/Sparkle.framework/Sparkle)"
+          APP_ARCHS="$(lipo -archs .build/dmg-staging/Cairn.app/Contents/MacOS/Cairn)"
+          HELPER_ARCHS="$(lipo -archs .build/dmg-staging/Cairn.app/Contents/Helpers/codeisland-bridge)"
+          SPARKLE_ARCHS="$(lipo -archs .build/dmg-staging/Cairn.app/Contents/Frameworks/Sparkle.framework/Sparkle)"
           test "$APP_ARCHS" = "arm64"
           test "$HELPER_ARCHS" = "arm64"
           test "$SPARKLE_ARCHS" = "arm64"
-          test -s .build/dmg-staging/FlowIsland.app/Contents/Resources/AppIcon.icns
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' .build/dmg-staging/FlowIsland.app/Contents/Info.plist)" = "AppIcon"
-          codesign --verify --deep --strict --verbose=2 .build/dmg-staging/FlowIsland.app
-          ls -lh .build/FlowIsland.dmg
+          test -s .build/dmg-staging/Cairn.app/Contents/Resources/AppIcon.icns
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' .build/dmg-staging/Cairn.app/Contents/Info.plist)" = "AppIcon"
+          codesign --verify --deep --strict --verbose=2 .build/dmg-staging/Cairn.app
+          ls -lh .build/Cairn.dmg
 
       - name: Verify notarized app launch policy
         if: ${{ inputs.sign_and_notarize }}
         run: |
-          spctl --assess --type execute --verbose=4 .build/dmg-staging/FlowIsland.app
-          xcrun stapler validate .build/FlowIsland.dmg
+          spctl --assess --type execute --verbose=4 .build/dmg-staging/Cairn.app
+          xcrun stapler validate .build/Cairn.dmg
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FlowIsland-macos-arm64-dmg
-          path: .build/FlowIsland.dmg
+          name: Cairn-macos-arm64-dmg
+          path: .build/Cairn.dmg
           if-no-files-found: error

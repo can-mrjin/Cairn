@@ -1,8 +1,20 @@
 # Changelog
 
-All notable changes to FlowIsland are documented in this file.
+All notable changes to Cairn are documented in this file.
 
-FlowIsland is built on the MIT-licensed foundation of [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland).
+Cairn is built on the MIT-licensed foundation of [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland).
+
+## [v1.2.0] - 2026-11-27
+
+### English
+- **Rebranded to Cairn**: New product name (`Cairn`, `Cairn.app`, `Cairn.dmg`, `com.cairn.app`) and new machined brushed-aluminum hardware icon (`AppIcon.icon` / `AppIcon.icns`), with automatic one-time migration of existing `com.flowisland.app` preferences.
+- **Full Antigravity Subagent Detection**: Added O(1) parent-agent message resolution for standard `invoke_subagent` subagents (such as `image-generator`, `research`, `browser`, and custom subagents) in addition to Swarm rosters, so all subagents fold into the parent tree and respect root-only sound gating.
+- **Always-Visible Right-Wing Unread Dot**: Kept the emerald unread dot visible on the collapsed right wing whenever any conversation has an unread reply, even while another conversation is actively working.
+
+### 中文
+- **品牌与图标焕新为 Cairn**：正式更名为 **Cairn**（`Cairn.app`、`Cairn.dmg`、`com.cairn.app`），启用全新博朗拉丝铝工业仪表与叠石路标图标，并自动一次性迁移原 `com.flowisland.app` 本地配置。
+- **补全常规 Antigravity 子代理识别**：在 Swarm 成员表之外新增 O(1) 父代理消息直查，将 `invoke_subagent` 派生的普通子代理（如画图、调研、浏览器等）也自动折叠进主对话树并纳入静音控制。
+- **未读绿点常驻右侧显示**：只要存在未读回复，收起态右侧始终保留一颗干净的未读绿点，即使其他会话正在运行也不再被隐藏。
 
 ## [v1.1.2] - 2026-11-27
 

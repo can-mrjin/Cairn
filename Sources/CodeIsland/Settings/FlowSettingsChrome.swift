@@ -338,7 +338,7 @@ struct FlowSettingsSliderRow: View {
     }
 }
 
-// MARK: - App Logo (FlowIsland Liquid Glass Artwork)
+// MARK: - App Logo (Cairn Artwork)
 
 struct AppLogoView: View {
     var size: CGFloat = 100
@@ -346,7 +346,7 @@ struct AppLogoView: View {
 
     private static let cachedLogoImage: NSImage? = {
         guard let url = Bundle.appModule.url(
-            forResource: "FlowIslandLogo",
+            forResource: "CairnLogo",
             withExtension: "png",
             subdirectory: "Resources"
         ) else { return nil }

@@ -44,7 +44,7 @@ final class StatusItemController: NSObject {
             if let button = item.button {
                 button.image = Self.menuBarIcon()
                 button.imageScaling = .scaleProportionallyDown
-                button.toolTip = "FlowIsland"
+                button.toolTip = "Cairn"
             }
             item.menu = menu
             statusItem = item

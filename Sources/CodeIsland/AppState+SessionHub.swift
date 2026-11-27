@@ -425,13 +425,27 @@ extension AppState {
         lastAntigravityLinkScan = now
         antigravityLinkScanInFlight = true
         let loader = antigravityLinkLoader
+        let directLoader = antigravityDirectSubagentLinkLoader
+        let candidateIds: [String] = sessions.compactMap { id, snap in
+            guard Self.isAntigravitySource(snap.source) else { return nil }
+            return id
+        }
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let links = loader()
+            var links = loader()
+            for id in candidateIds where links[id] == nil {
+                if let direct = directLoader(id) {
+                    links[id] = direct
+                }
+            }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.antigravityLinkScanInFlight = false
-                if links != self.antigravitySubagentLinks {
-                    self.antigravitySubagentLinks = links
+                var merged = self.antigravitySubagentLinks
+                for (childId, link) in links {
+                    merged[childId] = link
+                }
+                if merged != self.antigravitySubagentLinks {
+                    self.antigravitySubagentLinks = merged
                     _ = self.applyAntigravitySubagentFolding(skipRefresh: true)
                     self.refreshDerivedState()
                 }
@@ -467,7 +481,11 @@ extension AppState {
                             || antigravityLinkScanInFlight
                             || now.timeIntervalSince(lastAntigravityLinkScan) >= Self.antigravityLinkScanCooldown
                         if shouldSyncScan {
-                            let links = antigravityLinkLoader()
+                            var links = antigravityLinkLoader()
+                            if links[triggerId] == nil,
+                               let direct = antigravityDirectSubagentLinkLoader(triggerId) {
+                                links[triggerId] = direct
+                            }
                             lastAntigravityLinkScan = now
                             antigravityLinkAttemptedAt[triggerId] = now
                             for (childId, link) in links where antigravitySubagentLinks[childId] != link {

@@ -107,7 +107,7 @@ struct PushFieldSpec: Equatable {
             return [
                 PushFieldSpec(key: "push_field_server", value: \.endpoint, prompt: .literal(kind.defaultEndpoint)),
                 PushFieldSpec(key: "push_field_device_key", value: \.target, masked: true),
-                PushFieldSpec(key: "push_field_group", value: \.group, prompt: .literal("FlowIsland")),
+                PushFieldSpec(key: "push_field_group", value: \.group, prompt: .literal("Cairn")),
                 PushFieldSpec(key: "push_field_icon", value: \.icon, prompt: .optional),
                 PushFieldSpec(key: "push_field_sound", value: \.sound, prompt: .optional),
             ]

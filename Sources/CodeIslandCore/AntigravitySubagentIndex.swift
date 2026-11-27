@@ -71,27 +71,99 @@ public enum AntigravitySubagentIndex {
         }
     }
 
-    /// Scans `<brainRoot>/*/.system_generated/swarm/members.json` and returns `[childSessionId: AntigravitySubagentLink]`.
-    /// Each `members.json` has shape:
-    /// `{ "title": "...", "members": { "coordinator": { "conversation_id": "...", "role": "coordinator" }, "worker-name": { "conversation_id": "...", "role": "worker", "killed": false } } }`
-    /// Maps every non-coordinator member's `conversation_id` to the coordinator's `conversation_id` (falling back to the parent directory name), with `roleName` = member key name.
-    public static func loadLinks(brainRoot: String? = nil) -> [String: AntigravitySubagentLink] {
-        let root = brainRoot ?? defaultBrainRoot
-        let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(atPath: root) else {
-            return [:]
+    private struct SubagentMessageRecord: Decodable {
+        struct RenderDetails: Decodable {
+            let messageTitle: String?
         }
 
-        var links: [String: AntigravitySubagentLink] = [:]
-        for entry in entries.sorted() {
-            guard !entry.isEmpty, !entry.hasPrefix(".") else { continue }
-            let membersPath = "\(root)/\(entry)/.system_generated/swarm/members.json"
-            guard fm.fileExists(atPath: membersPath),
-                  let data = try? Data(contentsOf: URL(fileURLWithPath: membersPath)) else {
+        let recipient: String?
+        let sender: String?
+        let timestamp: String?
+        let renderDetails: RenderDetails?
+    }
+
+    /// O(1) lookup for a non-Swarm `invoke_subagent` child conversation.
+    /// Antigravity writes `<brainRoot>/<childId>/.system_generated/messages/<uuid>.json`
+    /// with `"renderDetails": {"messageTitle": "Message from Parent Agent"}` and
+    /// `"sender": "<parentConversationId>"`.
+    public static func loadInvokeSubagentLink(
+        forSessionId sessionId: String,
+        brainRoot: String? = nil
+    ) -> AntigravitySubagentLink? {
+        let trimmedId = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedId.isEmpty, !trimmedId.contains("/"), !trimmedId.hasPrefix(".") else {
+            return nil
+        }
+        let root = brainRoot ?? defaultBrainRoot
+        let messagesDir = "\(root)/\(trimmedId)/.system_generated/messages"
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: messagesDir) else {
+            return nil
+        }
+
+        var earliestMatch: (timestamp: String, parentId: String)?
+        for entry in entries.sorted() where entry.hasSuffix(".json") && entry != "read.json" {
+            let path = "\(messagesDir)/\(entry)"
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let record = try? JSONDecoder().decode(SubagentMessageRecord.self, from: data) else {
                 continue
             }
-            for link in parseSwarmMembers(data: data, fallbackParentId: entry) {
-                links[link.childSessionId] = link
+            guard record.renderDetails?.messageTitle?.trimmingCharacters(in: .whitespacesAndNewlines) == "Message from Parent Agent" else {
+                continue
+            }
+            guard let parentId = nonEmptyTrimmed(record.sender),
+                  parentId != trimmedId,
+                  !parentId.contains("/") else {
+                continue
+            }
+            if let recipient = nonEmptyTrimmed(record.recipient), recipient != trimmedId {
+                continue
+            }
+            let ts = record.timestamp ?? ""
+            if let current = earliestMatch {
+                if !ts.isEmpty && (current.timestamp.isEmpty || ts < current.timestamp) {
+                    earliestMatch = (ts, parentId)
+                }
+            } else {
+                earliestMatch = (ts, parentId)
+            }
+        }
+
+        guard let match = earliestMatch else { return nil }
+        return AntigravitySubagentLink(
+            childSessionId: trimmedId,
+            parentSessionId: match.parentId,
+            roleName: "subagent-\(String(trimmedId.suffix(4)))",
+            swarmTitle: nil
+        )
+    }
+
+    /// Scans `<brainRoot>/*/.system_generated/swarm/members.json` and, for any
+    /// active `candidateSessionIds` not present in Swarm rosters, checks O(1)
+    /// `invoke_subagent` parent-agent message records.
+    public static func loadLinks(
+        brainRoot: String? = nil,
+        candidateSessionIds: [String] = []
+    ) -> [String: AntigravitySubagentLink] {
+        let root = brainRoot ?? defaultBrainRoot
+        let fm = FileManager.default
+        var links: [String: AntigravitySubagentLink] = [:]
+        if let entries = try? fm.contentsOfDirectory(atPath: root) {
+            for entry in entries.sorted() {
+                guard !entry.isEmpty, !entry.hasPrefix(".") else { continue }
+                let membersPath = "\(root)/\(entry)/.system_generated/swarm/members.json"
+                guard fm.fileExists(atPath: membersPath),
+                      let data = try? Data(contentsOf: URL(fileURLWithPath: membersPath)) else {
+                    continue
+                }
+                for link in parseSwarmMembers(data: data, fallbackParentId: entry) {
+                    links[link.childSessionId] = link
+                }
+            }
+        }
+        for candidateId in candidateSessionIds where links[candidateId] == nil {
+            if let direct = loadInvokeSubagentLink(forSessionId: candidateId, brainRoot: root) {
+                links[candidateId] = direct
             }
         }
         return links

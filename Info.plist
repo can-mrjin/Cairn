@@ -3,23 +3,23 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>FlowIsland</string>
+	<string>Cairn</string>
 	<key>CFBundleExecutable</key>
-	<string>FlowIsland</string>
+	<string>Cairn</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.flowisland.app</string>
+	<string>com.cairn.app</string>
 	<key>CFBundleName</key>
-	<string>FlowIsland</string>
+	<string>Cairn</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.2</string>
+	<string>1.2.0</string>
 	<key>CFBundleVersion</key>
-	<string>1.1.2</string>
+	<string>1.2.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -28,21 +28,21 @@
 		<true/>
 	</dict>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>FlowIsland needs to control terminal apps to jump to the correct window and tab when you click a session.</string>
+	<string>Cairn needs to control terminal apps to jump to the correct window and tab when you click a session.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>FlowIsland uses Bluetooth to mirror the island onto Buddy.</string>
+	<string>Cairn uses Bluetooth to mirror the island onto Buddy.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_codeisland._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>FlowIsland advertises itself on the local network so iPhone can mirror the island state.</string>
+	<string>Cairn advertises itself on the local network so iPhone can mirror the island state.</string>
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
 	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/zepeng-jin/FlowIsland/main/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/zepeng-jin/Cairn/main/appcast.xml</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>14400</integer>
 </dict>

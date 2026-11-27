@@ -17,11 +17,11 @@ jobs:
       - name: Download DMG from release
         run: |
           curl -L \
-            "https://github.com/zepeng-jin/FlowIsland/releases/download/v${VERSION}/FlowIsland.dmg" \
-            -o FlowIsland.dmg
+            "https://github.com/zepeng-jin/Cairn/releases/download/v${VERSION}/Cairn.dmg" \
+            -o Cairn.dmg
 
       - name: Compute SHA256
-        run: echo "SHA256=$(sha256sum FlowIsland.dmg | awk '{print $1}')" >> $GITHUB_ENV
+        run: echo "SHA256=$(sha256sum Cairn.dmg | awk '{print $1}')" >> $GITHUB_ENV
 
       - name: Clone homebrew-tap
         if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
@@ -32,26 +32,26 @@ jobs:
         if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
         run: |
           mkdir -p homebrew-tap/Casks
-          cat > homebrew-tap/Casks/flowisland.rb <<'CASK_EOF'
-          cask "flowisland" do
+          cat > homebrew-tap/Casks/cairn.rb <<'CASK_EOF'
+          cask "cairn" do
             version "VERSION_PLACEHOLDER"
             sha256 "SHA256_PLACEHOLDER"
 
-            url "https://github.com/zepeng-jin/FlowIsland/releases/download/v#{version}/FlowIsland.dmg"
-            name "FlowIsland"
+            url "https://github.com/zepeng-jin/Cairn/releases/download/v#{version}/Cairn.dmg"
+            name "Cairn"
             desc "macOS notch hub for AI coding agents"
-            homepage "https://github.com/zepeng-jin/FlowIsland"
+            homepage "https://github.com/zepeng-jin/Cairn"
 
-            app "FlowIsland.app"
+            app "Cairn.app"
 
             zap trash: [
               "~/.codeisland",
             ]
           end
           CASK_EOF
-          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/" homebrew-tap/Casks/flowisland.rb
-          sed -i "s/SHA256_PLACEHOLDER/${SHA256}/" homebrew-tap/Casks/flowisland.rb
-          sed -i 's/^          //' homebrew-tap/Casks/flowisland.rb
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/" homebrew-tap/Casks/cairn.rb
+          sed -i "s/SHA256_PLACEHOLDER/${SHA256}/" homebrew-tap/Casks/cairn.rb
+          sed -i 's/^          //' homebrew-tap/Casks/cairn.rb
 
       - name: Commit and push to homebrew-tap
         if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
@@ -59,6 +59,6 @@ jobs:
           cd homebrew-tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/flowisland.rb
-          git commit -m "Update flowisland to ${VERSION}"
+          git add Casks/cairn.rb
+          git commit -m "Update cairn to ${VERSION}"
           git push

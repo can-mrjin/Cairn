@@ -1,8 +1,8 @@
 # Third-Party Licenses & Upstream Attribution
 
-FlowIsland as a combined work is licensed under the **GNU General Public License v3.0** (see [LICENSE](LICENSE)).
+Cairn as a combined work is licensed under the **GNU General Public License v3.0** (see [LICENSE](LICENSE)).
 
-Portions of FlowIsland are derived from [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland), whose original MIT license and copyright notice are preserved in full below.
+Portions of Cairn are derived from [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland), whose original MIT license and copyright notice are preserved in full below.
 
 ---
 

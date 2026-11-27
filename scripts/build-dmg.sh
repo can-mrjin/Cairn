@@ -20,9 +20,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/.build"
 RELEASE_DIR="$BUILD_DIR/release"
 STAGING_DIR="$BUILD_DIR/dmg-staging"
-APP_DIR="$STAGING_DIR/FlowIsland.app"
+APP_DIR="$STAGING_DIR/Cairn.app"
 CONTENTS_DIR="$APP_DIR/Contents"
-OUTPUT_DMG="$BUILD_DIR/FlowIsland.dmg"
+OUTPUT_DMG="$BUILD_DIR/Cairn.dmg"
 BUILD_ARCH="${BUILD_ARCH:-universal}"
 
 case "$BUILD_ARCH" in
@@ -34,7 +34,7 @@ case "$BUILD_ARCH" in
         ;;
 esac
 
-echo "==> Building FlowIsland ${VERSION} (${BUILD_ARCH})"
+echo "==> Building Cairn ${VERSION} (${BUILD_ARCH})"
 
 cd "$REPO_ROOT"
 source "$REPO_ROOT/scripts/swiftpm-release.sh"
@@ -55,16 +55,16 @@ case "$BUILD_ARCH" in
     universal)
         # Create universal binaries
         lipo -create "$ARM_DIR/CodeIsland" "$X86_DIR/CodeIsland" \
-             -output "$CONTENTS_DIR/MacOS/FlowIsland"
+             -output "$CONTENTS_DIR/MacOS/Cairn"
         lipo -create "$ARM_DIR/codeisland-bridge" "$X86_DIR/codeisland-bridge" \
              -output "$CONTENTS_DIR/Helpers/codeisland-bridge"
         ;;
     arm64)
-        cp "$ARM_DIR/CodeIsland" "$CONTENTS_DIR/MacOS/FlowIsland"
+        cp "$ARM_DIR/CodeIsland" "$CONTENTS_DIR/MacOS/Cairn"
         cp "$ARM_DIR/codeisland-bridge" "$CONTENTS_DIR/Helpers/codeisland-bridge"
         ;;
 esac
-chmod +x "$CONTENTS_DIR/MacOS/FlowIsland" "$CONTENTS_DIR/Helpers/codeisland-bridge"
+chmod +x "$CONTENTS_DIR/MacOS/Cairn" "$CONTENTS_DIR/Helpers/codeisland-bridge"
 
 # Write Info.plist (use the root Info.plist as base, update version)
 CURRENT_VER=$(defaults read "$REPO_ROOT/Info.plist" CFBundleShortVersionString)
@@ -134,8 +134,8 @@ echo "==> Embedded Sparkle.framework from $SPARKLE_SRC"
 # /Frameworks explicitly. Changing the load commands invalidates any prior
 # signature — we re-sign below.
 install_name_tool -add_rpath "@executable_path/../Frameworks" \
-    "$CONTENTS_DIR/MacOS/FlowIsland"
-echo "==> Added @executable_path/../Frameworks rpath to FlowIsland binary"
+    "$CONTENTS_DIR/MacOS/Cairn"
+echo "==> Added @executable_path/../Frameworks rpath to Cairn binary"
 
 echo "==> App bundle assembled at $APP_DIR"
 
@@ -235,12 +235,12 @@ rm -f "$OUTPUT_DMG"
 
 if command -v create-dmg >/dev/null 2>&1; then
     create-dmg \
-        --volname "FlowIsland ${VERSION}" \
+        --volname "Cairn ${VERSION}" \
         --window-pos 200 120 \
         --window-size 600 400 \
         --icon-size 100 \
-        --icon "FlowIsland.app" 175 190 \
-        --hide-extension "FlowIsland.app" \
+        --icon "Cairn.app" 175 190 \
+        --hide-extension "Cairn.app" \
         --app-drop-link 425 190 \
         --no-internet-enable \
         --sandbox-safe \
@@ -250,7 +250,7 @@ else
     echo "==> create-dmg not found — using hdiutil fallback"
     ln -sfn /Applications "$STAGING_DIR/Applications"
     hdiutil create \
-        -volname "FlowIsland ${VERSION}" \
+        -volname "Cairn ${VERSION}" \
         -srcfolder "$STAGING_DIR" \
         -format UDZO \
         -ov \

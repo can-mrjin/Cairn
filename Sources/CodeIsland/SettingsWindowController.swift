@@ -76,7 +76,7 @@ class SettingsWindowController {
     }
 
     static func bundleAppIcon() -> NSImage {
-        if let url = Bundle.appModule.url(forResource: "FlowIslandLogo", withExtension: "png", subdirectory: "Resources"),
+        if let url = Bundle.appModule.url(forResource: "CairnLogo", withExtension: "png", subdirectory: "Resources"),
            let bundled = NSImage(contentsOf: url) {
             bundled.size = NSSize(width: 256, height: 256)
             return bundled

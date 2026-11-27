@@ -297,7 +297,22 @@ class SettingsManager {
 
     private let defaults = UserDefaults.standard
 
+    /// One-time migration when upgrading from `com.flowisland.app` to `com.cairn.app`
+    /// so existing user preferences carry over without resetting.
+    private func migrateLegacyFlowIslandPreferencesIfNeeded() {
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        let flagKey = "cairn.migratedFromFlowIsland"
+        guard !defaults.bool(forKey: flagKey) else { return }
+        defaults.set(true, forKey: flagKey)
+        if let legacy = UserDefaults(suiteName: "com.flowisland.app")?.persistentDomain(forName: "com.flowisland.app") {
+            for (key, value) in legacy where defaults.object(forKey: key) == nil {
+                defaults.set(value, forKey: key)
+            }
+        }
+    }
+
     private init() {
+        migrateLegacyFlowIslandPreferencesIfNeeded()
         defaults.register(defaults: [
             SettingsKey.displayChoice: SettingsDefaults.displayChoice,
             SettingsKey.allowHorizontalDrag: SettingsDefaults.allowHorizontalDrag,

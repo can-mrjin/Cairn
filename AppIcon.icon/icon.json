@@ -6,8 +6,8 @@
         {
           "blend-mode" : "normal",
           "glass" : true,
-          "image-name" : "flowisland-icon.png",
-          "name" : "flowisland-icon",
+          "image-name" : "cairn-icon.png",
+          "name" : "cairn-icon",
           "position" : {
             "scale" : 1,
             "translation-in-points" : [

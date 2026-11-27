@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="logo.png" width="88" height="88" alt="FlowIsland Logo" />
+<img src="logo.png" width="88" height="88" alt="Cairn Logo" />
 
-# FlowIsland
+# Cairn
 
 在 Mac 刘海里统一管理你的 AI 编程对话。
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [下载 Releases](https://github.com/zepeng-jin/FlowIsland/releases)
+[English](README.md) · [简体中文](README.zh-CN.md) · [下载 Releases](https://github.com/zepeng-jin/Cairn/releases)
 
 </div>
 
@@ -25,11 +25,11 @@
 
 ### 直接下载
 
-1. 前往 [GitHub Releases](https://github.com/zepeng-jin/FlowIsland/releases) 下载最新 `FlowIsland.dmg`（macOS 14+，Apple Silicon）。
-2. 将 `FlowIsland.app` 拖入 `/Applications`。
+1. 前往 [GitHub Releases](https://github.com/zepeng-jin/Cairn/releases) 下载最新 `Cairn.dmg`（macOS 14+，Apple Silicon）。
+2. 将 `Cairn.app` 拖入 `/Applications`。
 3. 首次打开如遇系统未公证拦截，在终端执行：
    ```bash
-   xattr -cr /Applications/FlowIsland.app
+   xattr -cr /Applications/Cairn.app
    ```
 4. 打开应用后，在「设置」中按需开启对应工具的 Hook 即可。
 
@@ -38,8 +38,8 @@
 需要 macOS 14+ 与 Xcode / Swift 5.9+：
 
 ```bash
-git clone https://github.com/zepeng-jin/FlowIsland.git
-cd FlowIsland
+git clone https://github.com/zepeng-jin/Cairn.git
+cd Cairn
 swift build
 ```
 

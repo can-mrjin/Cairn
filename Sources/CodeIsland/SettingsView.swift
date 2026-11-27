@@ -85,7 +85,7 @@ private struct SidebarGroup: Hashable {
 private let sidebarGroups: [SidebarGroup] = [
     SidebarGroup(pages: [.general, .hooks, .behavior, .appearance, .sound, .mascots]),
     SidebarGroup(titleKey: "settings_group_advanced", pages: [.shortcuts, .remote, .buddy]),
-    SidebarGroup(literalTitle: "FlowIsland", pages: [.about]),
+    SidebarGroup(literalTitle: "Cairn", pages: [.about]),
 ]
 
 // MARK: - Main Settings View

@@ -371,6 +371,9 @@ final class AppState {
     @ObservationIgnored var antigravityLinkLoader: @Sendable () -> [String: AntigravitySubagentLink] = {
         AntigravitySubagentIndex.loadLinks()
     }
+    @ObservationIgnored var antigravityDirectSubagentLinkLoader: @Sendable (String) -> AntigravitySubagentLink? = { sessionId in
+        AntigravitySubagentIndex.loadInvokeSubagentLink(forSessionId: sessionId)
+    }
     /// Latest ordered visible session IDs in the expanded Hub list (used by ⌘1..⌘9 quick jump).
     @ObservationIgnored var lastVisibleHubSessionIds: [String] = []
 

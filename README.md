@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="logo.png" width="88" height="88" alt="FlowIsland Logo" />
+<img src="logo.png" width="88" height="88" alt="Cairn Logo" />
 
-# FlowIsland
+# Cairn
 
 Keep track of your AI coding agents right from the MacBook notch.
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [Releases](https://github.com/zepeng-jin/FlowIsland/releases)
+[English](README.md) · [简体中文](README.zh-CN.md) · [Releases](https://github.com/zepeng-jin/Cairn/releases)
 
 </div>
 
@@ -25,21 +25,21 @@ Keep track of your AI coding agents right from the MacBook notch.
 
 ### Download
 
-1. Download `FlowIsland.dmg` from [GitHub Releases](https://github.com/zepeng-jin/FlowIsland/releases) (macOS 14+, Apple Silicon).
-2. Drag `FlowIsland.app` into `/Applications`.
+1. Download `Cairn.dmg` from [GitHub Releases](https://github.com/zepeng-jin/Cairn/releases) (macOS 14+, Apple Silicon).
+2. Drag `Cairn.app` into `/Applications`.
 3. If macOS Gatekeeper blocks first launch on an unnotarized build, run:
    ```bash
-   xattr -cr /Applications/FlowIsland.app
+   xattr -cr /Applications/Cairn.app
    ```
-4. Launch FlowIsland and enable the hooks for your agents in **Settings**.
+4. Launch Cairn and enable the hooks for your agents in **Settings**.
 
 ### Build from Source
 
 Requires macOS 14+ and Xcode / Swift 5.9+:
 
 ```bash
-git clone https://github.com/zepeng-jin/FlowIsland.git
-cd FlowIsland
+git clone https://github.com/zepeng-jin/Cairn.git
+cd Cairn
 swift build
 ```
 
