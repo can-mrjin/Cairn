@@ -36,6 +36,40 @@ final class PanelFitLayoutTests: XCTestCase {
         XCTAssertFalse(SessionListMetrics.needsScroll(isCompletionCard: true, sessionCount: 6, contentHeight: 900, maxVisibleSessions: 5))
     }
 
+    func testAdaptiveHeightExpandsTallCardsToScreenBudgetBeforeScrolling() {
+        // 4 tall checklist cards (total ~640pt) fit comfortably inside a 760pt
+        // screen budget without early clipping at 450pt.
+        let scrollMax = SessionListMetrics.adaptiveScrollMaxHeight(
+            sessionCount: 4,
+            maxVisibleSessions: 5,
+            contentHeight: 640,
+            reservedHeight: 0,
+            footerHeight: 28,
+            availableHeight: 790
+        )
+        XCTAssertEqual(scrollMax, 762)
+        XCTAssertFalse(SessionListMetrics.needsAdaptiveScroll(
+            isCompletionCard: false,
+            sessionCount: 4,
+            contentHeight: 640,
+            maxVisibleSessions: 5,
+            scrollMaxHeight: scrollMax
+        ))
+        // Once content genuinely exceeds the screen budget, scrolling engages.
+        XCTAssertTrue(SessionListMetrics.needsAdaptiveScroll(
+            isCompletionCard: false,
+            sessionCount: 4,
+            contentHeight: 820,
+            maxVisibleSessions: 5,
+            scrollMaxHeight: scrollMax
+        ))
+        // Adaptive window height grows to 85% of screen height without exceeding it.
+        XCTAssertEqual(
+            PanelHeightMetrics.adaptiveWindowHeight(maxVisibleSessions: 5, screenVisibleHeight: 1000),
+            850
+        )
+    }
+
     func testFewTallSessionsStayInsideTheWindow() throws {
         // Four sessions — under the five the window is sized for — but with
         // a task list, an approval row and a recap they ran ~150pt past the

@@ -3768,6 +3768,55 @@ enum SessionListMetrics {
         case .compact, .minimal: return tooTall
         }
     }
+
+    /// Adaptive scroll-viewport ceiling inside `availableHeight`.
+    ///
+    /// When `sessionCount <= maxVisibleSessions`, let all visible cards grow
+    /// naturally up to the window's real `screenBudget` instead of capping
+    /// early at `maxVisibleSessions * 90pt` (which clipped tall checklist /
+    /// subagent cards even when plenty of screen room remained). When more
+    /// sessions exist than `maxVisibleSessions`, scale the viewport by the
+    /// measured average card height so `maxVisibleSessions` cards fit cleanly
+    /// before scrolling, bounded by `screenBudget`.
+    static func adaptiveScrollMaxHeight(
+        sessionCount: Int,
+        maxVisibleSessions: Int,
+        contentHeight: CGFloat,
+        reservedHeight: CGFloat,
+        footerHeight: CGFloat,
+        availableHeight: CGFloat?
+    ) -> CGFloat {
+        let defaultBudget = scrollHeight(maxVisibleSessions: maxVisibleSessions) - reservedHeight
+        guard let availableHeight else {
+            return max(120, defaultBudget)
+        }
+        let screenBudget = max(120, availableHeight - reservedHeight - footerHeight)
+        if sessionCount <= maxVisibleSessions {
+            return screenBudget
+        }
+        if contentHeight > 1, sessionCount > 0 {
+            let avgCardHeight = contentHeight / CGFloat(sessionCount)
+            let estimatedForMax = (avgCardHeight * CGFloat(maxVisibleSessions)).rounded(.up)
+            return max(120, min(screenBudget, max(defaultBudget, estimatedForMax)))
+        }
+        return max(120, min(screenBudget, defaultBudget))
+    }
+
+    static func needsAdaptiveScroll(
+        isCompletionCard: Bool,
+        sessionCount: Int,
+        contentHeight: CGFloat,
+        maxVisibleSessions: Int,
+        scrollMaxHeight: CGFloat,
+        density: SessionListDensity = .comfortable
+    ) -> Bool {
+        guard !isCompletionCard else { return false }
+        let overflowsBudget = contentHeight > scrollMaxHeight + 0.5
+        switch density {
+        case .comfortable: return sessionCount > maxVisibleSessions || overflowsBudget
+        case .compact, .minimal: return overflowsBudget
+        }
+    }
 }
 
 private struct SessionListView: View {
@@ -3898,19 +3947,22 @@ private struct SessionListView: View {
         }
         let totalSessionCount = groupedRows.reduce(0) { $0 + $1.rows.count }
         let density = self.density
-        let defaultScrollMax = SessionListMetrics.scrollHeight(maxVisibleSessions: maxVisibleSessions) - reservedHeight
-        let scrollMaxHeight: CGFloat = if let availableHeight {
-            max(120, min(defaultScrollMax, availableHeight - reservedHeight - footerHeight))
-        } else {
-            max(120, defaultScrollMax)
-        }
-        let needsScroll = SessionListMetrics.needsScroll(
+        let scrollMaxHeight = SessionListMetrics.adaptiveScrollMaxHeight(
+            sessionCount: totalSessionCount,
+            maxVisibleSessions: maxVisibleSessions,
+            contentHeight: contentHeight,
+            reservedHeight: reservedHeight,
+            footerHeight: footerHeight,
+            availableHeight: availableHeight
+        )
+        let needsScroll = SessionListMetrics.needsAdaptiveScroll(
             isCompletionCard: onlySessionId != nil,
             sessionCount: totalSessionCount,
-            contentHeight: contentHeight + reservedHeight,
+            contentHeight: contentHeight,
             maxVisibleSessions: maxVisibleSessions,
+            scrollMaxHeight: scrollMaxHeight,
             density: density
-        ) || (onlySessionId == nil && contentHeight > scrollMaxHeight + 0.5)
+        )
         // Compact rows share their column widths so the status words line up.
         let fontSize = CGFloat(contentFontSize)
         let compactColumns: (project: CGFloat, status: CGFloat) = density == .compact
