@@ -93,6 +93,6 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           gh release upload $tag `
-            windows/artifacts/*.zip `
-            windows/artifacts/release-manifest.json `
+            artifacts/*.zip `
+            artifacts/release-manifest.json `
             --clobber
