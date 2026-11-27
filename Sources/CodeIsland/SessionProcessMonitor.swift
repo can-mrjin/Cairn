@@ -35,6 +35,10 @@ final class SessionProcessMonitor {
         watches[sessionId]?.process
     }
 
+    var isEmpty: Bool {
+        watches.isEmpty
+    }
+
     func isWatching(_ sessionId: String) -> Bool {
         watches[sessionId] != nil
     }

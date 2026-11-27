@@ -53,3 +53,32 @@ public enum AppInstallLocation {
         return .readOnlyVolume
     }
 }
+
+/// Channel selection rules shared by Sparkle (`allowedChannels(for:)`) and
+/// release tooling (`scripts/update-appcast.sh`).
+public enum UpdateChannelPolicy {
+    public static let betaChannel = "beta"
+
+    /// True when `version` carries a SemVer prerelease suffix such as
+    /// `1.3.0-beta.1`, `1.3.0-rc.1`, or `1.3.0-alpha`.
+    public static func isPrereleaseVersion(_ version: String) -> Bool {
+        let trimmed = version.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let hyphen = trimmed.firstIndex(of: "-") else { return false }
+        let afterHyphen = trimmed[trimmed.index(after: hyphen)...]
+        let prerelease = afterHyphen.split(separator: "+", maxSplits: 1).first ?? ""
+        return !prerelease.isEmpty
+    }
+
+    /// Users running a beta build opt into the beta channel by default so they
+    /// keep receiving follow-up beta fixes; stable builds default to stable only.
+    public static func defaultIncludeBetaUpdates(currentVersion: String) -> Bool {
+        isPrereleaseVersion(currentVersion)
+    }
+
+    /// Sparkle channels enabled for the given preference. Returning an empty set
+    /// restricts Sparkle to the default (stable) channel; adding `"beta"` opts
+    /// into `<sparkle:channel>beta</sparkle:channel>` items as well.
+    public static func allowedChannels(includeBetaUpdates: Bool) -> Set<String> {
+        includeBetaUpdates ? [betaChannel] : []
+    }
+}

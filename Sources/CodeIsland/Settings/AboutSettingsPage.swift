@@ -9,6 +9,12 @@ struct AboutPage: View {
     @ObservedObject private var updater = UpdateChecker.shared
     @Environment(\.colorScheme) private var scheme
 
+    private static let lastCheckedFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        return formatter
+    }()
+
     var body: some View {
         FlowSettingsPageShell(page: .about, title: l10n["about"]) {
             FlowSettingsSection {
@@ -55,19 +61,68 @@ struct AboutPage: View {
                 }
             }
 
-            FlowSettingsSection {
+            FlowSettingsSection(title: l10n["settings_section_updates"]) {
+                FlowSettingsToggleRow(
+                    title: l10n["update_auto_check"],
+                    isOn: $updater.automaticallyChecksForUpdates
+                )
+                .disabled(updater.isHomebrewInstall)
+
+                FlowSettingsDivider()
+
+                FlowSettingsToggleRow(
+                    title: l10n["update_auto_download"],
+                    subtitle: l10n["update_auto_download_desc"],
+                    isOn: $updater.automaticallyDownloadsUpdates
+                )
+                .disabled(updater.isHomebrewInstall || !updater.automaticallyChecksForUpdates)
+
+                FlowSettingsDivider()
+
+                FlowSettingsToggleRow(
+                    title: l10n["update_include_beta"],
+                    subtitle: l10n["update_include_beta_desc"],
+                    isOn: $updater.includeBetaUpdates
+                )
+                .disabled(updater.isHomebrewInstall)
+
+                FlowSettingsDivider()
+
                 FlowSettingsRow(verticalPadding: 14) {
-                    VStack(spacing: 12) {
-                        updateSection
+                    VStack(alignment: .leading, spacing: 10) {
+                        updateStatusSection
+
+                        HStack(spacing: 10) {
+                            aboutButton(l10n["update_check_now"], icon: "arrow.triangle.2.circlepath") {
+                                updater.checkForUpdates()
+                            }
+                            .disabled(updater.state == .checking)
+
+                            if case .available = updater.state, !updater.isHomebrewInstall {
+                                aboutButton(l10n["update_now"], icon: "arrow.down.to.line") {
+                                    updater.checkForUpdates()
+                                }
+                            }
+                        }
+
+                        if let checkedDate = updater.lastCheckedDate {
+                            Text(String(
+                                format: l10n["update_last_checked"],
+                                Self.lastCheckedFormatter.string(from: checkedDate)
+                            ))
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.tertiary)
+                        }
+
                         if let reason = updater.readOnlyInstallReason {
                             readOnlyLocationNotice(reason)
                         }
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+            }
 
-                FlowSettingsDivider()
-
+            FlowSettingsSection {
                 FlowSettingsRow(verticalPadding: 12) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -90,12 +145,10 @@ struct AboutPage: View {
     }
 
     @ViewBuilder
-    private var updateSection: some View {
+    private var updateStatusSection: some View {
         switch updater.state {
         case .idle:
-            aboutButton(l10n["check_for_updates"], icon: "arrow.triangle.2.circlepath") {
-                updater.checkForUpdates()
-            }
+            EmptyView()
 
         case .checking:
             HStack(spacing: 6) {
@@ -106,25 +159,17 @@ struct AboutPage: View {
             }
 
         case .upToDate:
-            Button {
-                updater.checkForUpdates()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.system(size: 13))
-                    Text(String(format: l10n["no_update_body"], AppVersion.current))
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
-            .onHover { h in
-                if h { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.system(size: 13))
+                Text(String(format: l10n["no_update_body"], AppVersion.current))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
             }
 
         case let .available(version):
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.down.circle.fill")
                         .foregroundStyle(.blue)
@@ -132,7 +177,7 @@ struct AboutPage: View {
                     Text(String(format: l10n["update_available_body"], version, AppVersion.current))
                         .font(.system(size: 12.5))
                         .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if updater.isHomebrewInstall {
@@ -151,27 +196,18 @@ struct AboutPage: View {
                             NSPasteboard.general.setString(l10n["update_homebrew_command"], forType: .string)
                         }
                     }
-                } else {
-                    aboutButton(l10n["update_now"], icon: "arrow.down.to.line") {
-                        updater.checkForUpdates()
-                    }
                 }
             }
 
         case let .failed(message):
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.system(size: 13))
-                    Text(String(format: l10n["update_failed_body"], message))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                aboutButton(l10n["update_retry"], icon: "arrow.clockwise") {
-                    updater.checkForUpdates()
-                }
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 13))
+                Text(String(format: l10n["update_failed_body"], message))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
     }
@@ -185,7 +221,7 @@ struct AboutPage: View {
         case .diskImage: message = l10n["readonly_location_disk_image"]
         case .readOnlyVolume: message = l10n["readonly_location_volume"]
         }
-        return VStack(spacing: 8) {
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
@@ -199,7 +235,7 @@ struct AboutPage: View {
                 NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications", isDirectory: true))
             }
         }
-        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)

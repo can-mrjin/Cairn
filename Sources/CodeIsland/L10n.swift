@@ -664,6 +664,13 @@ final class L10n: ObservableObject {
         "update_homebrew_body": "Cairn %@ is available. Since you installed via Homebrew, please run:",
         "update_homebrew_command": "brew upgrade cairn",
         "update_copy_command": "Copy Command",
+        "update_auto_check": "Automatically check for updates",
+        "update_auto_download": "Automatically download and install updates",
+        "update_auto_download_desc": "Download new versions in the background and install them on the next restart.",
+        "update_include_beta": "Receive Beta updates",
+        "update_include_beta_desc": "Beta versions include features in development and may contain bugs or incomplete behavior.",
+        "update_check_now": "Check Now",
+        "update_last_checked": "Last checked: %@",
 
         // NotchPanel
         "mute": "Mute",
@@ -1357,6 +1364,13 @@ final class L10n: ObservableObject {
         "update_homebrew_body": "Cairn %@ ist verfügbar. Da du über Homebrew installiert hast, führe bitte aus:",
         "update_homebrew_command": "brew upgrade cairn",
         "update_copy_command": "Befehl kopieren",
+        "update_auto_check": "Automatisch nach Updates suchen",
+        "update_auto_download": "Updates automatisch laden und installieren",
+        "update_auto_download_desc": "Neue Versionen im Hintergrund laden und beim nächsten Neustart installieren.",
+        "update_include_beta": "Beta-Updates erhalten",
+        "update_include_beta_desc": "Beta-Versionen enthalten neue Funktionen in Entwicklung und können instabil oder unvollständig sein.",
+        "update_check_now": "Jetzt prüfen",
+        "update_last_checked": "Zuletzt geprüft: %@",
 
         // NotchPanel
         "mute": "Stumm",
@@ -2050,6 +2064,13 @@ final class L10n: ObservableObject {
         "update_homebrew_body": "Cairn %@ 已发布。由于您通过 Homebrew 安装，请运行：",
         "update_homebrew_command": "brew upgrade cairn",
         "update_copy_command": "复制命令",
+        "update_auto_check": "自动检查更新",
+        "update_auto_download": "自动下载并安装更新",
+        "update_auto_download_desc": "在后台自动下载新版本，并在下次重启应用时完成安装。",
+        "update_include_beta": "接收 Beta 测试版更新",
+        "update_include_beta_desc": "Beta 版本包含开发中的新功能，可能存在不稳定或未完善的情况。",
+        "update_check_now": "立即检查",
+        "update_last_checked": "上次检查：%@",
 
         // NotchPanel
         "mute": "静音",
@@ -2743,6 +2764,13 @@ final class L10n: ObservableObject {
         "update_homebrew_body": "Cairn %@ 已發布。由於您透過 Homebrew 安裝，請執行：",
         "update_homebrew_command": "brew upgrade cairn",
         "update_copy_command": "複製指令",
+        "update_auto_check": "自動檢查更新",
+        "update_auto_download": "自動下載並安裝更新",
+        "update_auto_download_desc": "在背景自動下載新版本，並於下次重新啟動時完成安裝。",
+        "update_include_beta": "接收 Beta 測試版更新",
+        "update_include_beta_desc": "Beta 版本包含開發中的新功能，可能存在不穩定或未完善的情況。",
+        "update_check_now": "立即檢查",
+        "update_last_checked": "上次檢查：%@",
 
         // NotchPanel
         "mute": "靜音",
@@ -3436,6 +3464,13 @@ final class L10n: ObservableObject {
         "update_homebrew_body": "Cairn %@ が利用可能です。Homebrew でインストールしたため、次を実行してください:",
         "update_homebrew_command": "brew upgrade cairn",
         "update_copy_command": "コマンドをコピー",
+        "update_auto_check": "アップデートを自動的に確認",
+        "update_auto_download": "アップデートを自動的にダウンロードしてインストール",
+        "update_auto_download_desc": "新しいバージョンをバックグラウンドでダウンロードし、次回の再起動時にインストールします。",
+        "update_include_beta": "ベータ版のアップデートを受け取る",
+        "update_include_beta_desc": "ベータ版には開発中の機能が含まれており、動作が不安定な場合があります。",
+        "update_check_now": "今すぐ確認",
+        "update_last_checked": "最終確認: %@",
 
         // NotchPanel
         "mute": "ミュート",
@@ -4129,6 +4164,13 @@ final class L10n: ObservableObject {
         "update_homebrew_body": "Cairn %@ 버전을 사용할 수 있습니다. Homebrew로 설치했으므로 다음 명령을 실행하세요:",
         "update_homebrew_command": "brew upgrade cairn",
         "update_copy_command": "명령 복사",
+        "update_auto_check": "자동으로 업데이트 확인",
+        "update_auto_download": "업데이트 자동 다운로드 및 설치",
+        "update_auto_download_desc": "새 버전을 백그라운드에서 다운로드하고 다음 재시작 시 설치합니다.",
+        "update_include_beta": "베타 업데이트 받기",
+        "update_include_beta_desc": "베타 버전에는 개발 중인 기능이 포함되어 있으며 불안정하거나 오류가 발생할 수 있습니다.",
+        "update_check_now": "지금 확인",
+        "update_last_checked": "마지막 확인: %@",
 
         // NotchPanel
         "mute": "음소거",
@@ -4822,6 +4864,13 @@ final class L10n: ObservableObject {
         "update_homebrew_body": "Cairn %@ mevcut. Homebrew ile yüklediğiniz için, lütfen şunu çalıştırın:",
         "update_homebrew_command": "brew upgrade cairn",
         "update_copy_command": "Komutu Kopyala",
+        "update_auto_check": "Güncellemeleri otomatik denetle",
+        "update_auto_download": "Güncellemeleri otomatik indir ve yükle",
+        "update_auto_download_desc": "Yeni sürümleri arka planda indirir ve bir sonraki yeniden başlatmada yükler.",
+        "update_include_beta": "Beta güncellemelerini al",
+        "update_include_beta_desc": "Beta sürümleri geliştirme aşamasındaki özellikleri içerir ve kararsızlık gösterebilir.",
+        "update_check_now": "Şimdi Denetle",
+        "update_last_checked": "Son denetim: %@",
 
         // NotchPanel
         "mute": "Sessiz",

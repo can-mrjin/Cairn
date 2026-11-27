@@ -570,11 +570,13 @@ final class AppState {
 
     private func startCleanupTimer() {
         guard cleanupTimer == nil else { return }
-        cleanupTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.cleanupIdleSessions()
             }
         }
+        timer.tolerance = 1.0
+        cleanupTimer = timer
     }
 
     /// Agents whose tracked process is a long-lived daemon rather than a
@@ -617,6 +619,10 @@ final class AppState {
     }
 
     private func cleanupIdleSessions() {
+        // Fast-path: when there are no active sessions and no watched PIDs,
+        // skip all process sweeps and dictionary scans so idle CPU stays near zero.
+        guard !sessions.isEmpty || !processMonitor.isEmpty else { return }
+
         // 1. Verify monitored PIDs are still alive (DispatchSource can silently miss exits)
         //    Also kill orphaned processes (ppid <= 1, terminal closed but process survived).
         let sweep = processMonitor.sweep()

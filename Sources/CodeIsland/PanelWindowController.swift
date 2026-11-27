@@ -254,9 +254,34 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     private var dragStartPanelX: CGFloat?
     private var isDraggingPanel = false
     private var localDragMonitor: Any?
+    private struct LayoutSettingsSnapshot: Equatable {
+        let hideInFullscreen: Bool
+        let hideWhenNoSession: Bool
+        let allowHorizontalDrag: Bool
+        let panelHorizontalOffset: Double
+        let avoidMenuBarIcons: Bool
+        let expandedPanelWidth: Int
+        let maxVisibleSessions: Int
+
+        @MainActor
+        static func current() -> Self {
+            let s = SettingsManager.shared
+            return Self(
+                hideInFullscreen: s.hideInFullscreen,
+                hideWhenNoSession: s.hideWhenNoSession,
+                allowHorizontalDrag: s.allowHorizontalDrag,
+                panelHorizontalOffset: s.panelHorizontalOffset,
+                avoidMenuBarIcons: s.avoidMenuBarIcons,
+                expandedPanelWidth: s.expandedPanelWidth,
+                maxVisibleSessions: UserDefaults.standard.integer(forKey: SettingsKey.maxVisibleSessions)
+            )
+        }
+    }
+
     private var lastDisplayChoice = ""
     private var lastNotchHeightMode = SettingsDefaults.notchHeightMode
     private var lastCustomNotchHeight = SettingsDefaults.customNotchHeight
+    private var lastLayoutSettingsSnapshot: LayoutSettingsSnapshot?
 
     init(appState: AppState) {
         self.appState = appState
@@ -624,6 +649,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
         lastDisplayChoice = SettingsManager.shared.displayChoice
         lastNotchHeightMode = SettingsManager.shared.notchHeightMode.rawValue
         lastCustomNotchHeight = SettingsManager.shared.customNotchHeight
+        lastLayoutSettingsSnapshot = LayoutSettingsSnapshot.current()
         let observer = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
             object: nil,
@@ -636,15 +662,24 @@ class PanelWindowController: NSObject, NSWindowDelegate {
                 let newCustomHeight = SettingsManager.shared.customNotchHeight
                 if newChoice != self.lastDisplayChoice {
                     self.lastDisplayChoice = newChoice
+                    self.lastLayoutSettingsSnapshot = LayoutSettingsSnapshot.current()
                     self.refreshCurrentScreen(forceRebuild: true)
                     self.configureAutoScreenPolling()
                 } else if newHeightMode != self.lastNotchHeightMode
                     || abs(newCustomHeight - self.lastCustomNotchHeight) > 0.001 {
                     self.lastNotchHeightMode = newHeightMode
                     self.lastCustomNotchHeight = newCustomHeight
+                    self.lastLayoutSettingsSnapshot = LayoutSettingsSnapshot.current()
                     self.refreshCurrentScreen(forceRebuild: true)
                 } else {
-                    if SettingsManager.shared.hideInFullscreen && !self.fullscreenHide.isLatched && self.isActiveSpaceFullscreen() {
+                    // Ignore unrelated UserDefaults writes (Sparkle checks, sound,
+                    // language, etc.) so they never trigger expensive fullscreen
+                    // checks or menu-bar CGWindowList scans.
+                    let snapshot = LayoutSettingsSnapshot.current()
+                    guard snapshot != self.lastLayoutSettingsSnapshot else { return }
+                    self.lastLayoutSettingsSnapshot = snapshot
+
+                    if snapshot.hideInFullscreen && !self.fullscreenHide.isLatched && self.isActiveSpaceFullscreen() {
                         self.fullscreenHide.latch()
                         self.startFullscreenExitPoller()
                     }
@@ -660,18 +695,22 @@ class PanelWindowController: NSObject, NSWindowDelegate {
         autoScreenPoller?.invalidate()
         autoScreenPoller = nil
 
-        guard !isPinnedToConnectedDisplay else { return }
+        // Single-display Macs cannot hop between displays; didChangeScreenParametersNotification
+        // re-invokes configureAutoScreenPolling() whenever an external monitor is attached.
+        guard !isPinnedToConnectedDisplay, NSScreen.screens.count > 1 else { return }
 
         // Screen-parameter / Space-change / frontmost-app notifications already cover the
         // common cases. This poller is a fallback for the rare path where a window is
         // dragged to another display without switching focus — a low cadence is enough
         // and every tick runs a full CGWindowListCopyWindowInfo, which was measurably
         // contributing to Energy Impact (#92).
-        autoScreenPoller = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshCurrentScreen()
             }
         }
+        timer.tolerance = 1.5
+        autoScreenPoller = timer
     }
 
     private func updatePosition() {
@@ -683,7 +722,14 @@ class PanelWindowController: NSObject, NSWindowDelegate {
             refreshCurrentScreen()
             return
         }
-        panel.setFrame(panelFrame(for: screen), display: true)
+        let targetFrame = panelFrame(for: screen)
+        let currentFrame = panel.frame
+        let unchanged = abs(currentFrame.origin.x - targetFrame.origin.x) <= 0.5
+            && abs(currentFrame.origin.y - targetFrame.origin.y) <= 0.5
+            && abs(currentFrame.size.width - targetFrame.size.width) <= 0.5
+            && abs(currentFrame.size.height - targetFrame.size.height) <= 0.5
+        guard !unchanged else { return }
+        panel.setFrame(targetFrame, display: true)
     }
 
     private func panelFrame(for screen: NSScreen) -> NSRect {
@@ -800,7 +846,7 @@ class PanelWindowController: NSObject, NSWindowDelegate {
     /// Poll every 3.0s while in fullscreen; stop when fullscreen ends
     private func startFullscreenExitPoller() {
         fullscreenPoller?.invalidate()
-        fullscreenPoller = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] timer in
+        let timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] timer in
             Task { @MainActor in
                 guard let self = self else { timer.invalidate(); return }
                 if !SettingsManager.shared.hideInFullscreen || !self.isActiveSpaceFullscreen() {
@@ -811,6 +857,8 @@ class PanelWindowController: NSObject, NSWindowDelegate {
                 }
             }
         }
+        timer.tolerance = 1.0
+        fullscreenPoller = timer
     }
 
     /// Update panel visibility based on settings

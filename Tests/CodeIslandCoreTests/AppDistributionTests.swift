@@ -69,4 +69,25 @@ final class AppDistributionTests: XCTestCase {
             .readOnlyVolume
         )
     }
+
+    // MARK: - Update channel policy
+
+    func testPrereleaseVersionDetection() {
+        XCTAssertTrue(UpdateChannelPolicy.isPrereleaseVersion("1.3.0-beta.1"))
+        XCTAssertTrue(UpdateChannelPolicy.isPrereleaseVersion("1.3.0-rc.2+42"))
+        XCTAssertTrue(UpdateChannelPolicy.isPrereleaseVersion("2.0.0-alpha"))
+        XCTAssertFalse(UpdateChannelPolicy.isPrereleaseVersion("1.2.0"))
+        XCTAssertFalse(UpdateChannelPolicy.isPrereleaseVersion("1.2.0+build5"))
+        XCTAssertFalse(UpdateChannelPolicy.isPrereleaseVersion("1.2.0-"))
+    }
+
+    func testDefaultIncludeBetaFollowsCurrentBuildChannel() {
+        XCTAssertTrue(UpdateChannelPolicy.defaultIncludeBetaUpdates(currentVersion: "1.3.0-beta.1"))
+        XCTAssertFalse(UpdateChannelPolicy.defaultIncludeBetaUpdates(currentVersion: "1.2.0"))
+    }
+
+    func testAllowedChannelsMatchesBetaToggle() {
+        XCTAssertEqual(UpdateChannelPolicy.allowedChannels(includeBetaUpdates: false), [])
+        XCTAssertEqual(UpdateChannelPolicy.allowedChannels(includeBetaUpdates: true), ["beta"])
+    }
 }

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: ./scripts/update-appcast.sh <version> <dmg-path>
-# Example: ./scripts/update-appcast.sh 1.0.0 .build/Cairn.dmg
+# Usage: ./scripts/update-appcast.sh [--channel beta] <version> <dmg-path>
+# Example: ./scripts/update-appcast.sh 1.2.0 .build/Cairn.dmg
+# Example: ./scripts/update-appcast.sh 1.3.0-beta.1 .build/Cairn.dmg
 #
 # Produces / updates appcast.xml at the repo root. Signs the DMG with the
 # private EdDSA key that lives in the macOS Keychain (added by Sparkle's
 # generate_keys tool during initial setup) and records the signature + size
-# + pubDate on a new <item> entry.
+# + pubDate on a new <item> entry. Prerelease versions (containing `-`) or
+# `--channel beta` are tagged with `<sparkle:channel>beta</sparkle:channel>`.
 #
 # Assumptions:
 #   - A prior `swift build -c release` has populated .build/artifacts so
@@ -16,11 +18,27 @@ set -euo pipefail
 #       https://github.com/zepeng-jin/Cairn/releases/download/v<version>/Cairn.dmg
 #     (the default asset URL from build-dmg.sh + `gh release create`).
 
+CHANNEL=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --channel)
+            CHANNEL="${2:-}"
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
 VERSION="${1:-}"
 DMG_PATH="${2:-}"
 if [[ -z "$VERSION" || -z "$DMG_PATH" ]]; then
-    echo "Usage: $0 <version> <dmg-path>" >&2
+    echo "Usage: $0 [--channel beta] <version> <dmg-path>" >&2
     exit 1
+fi
+if [[ -z "$CHANNEL" && "$VERSION" == *-* ]]; then
+    CHANNEL="beta"
 fi
 if [[ ! -f "$DMG_PATH" ]]; then
     echo "ERROR: DMG not found at $DMG_PATH" >&2
@@ -58,12 +76,18 @@ fi
 # ---------------------------------------------------------------------------
 # Build the new <item> block
 # ---------------------------------------------------------------------------
+CHANNEL_XML=""
+if [[ -n "$CHANNEL" ]]; then
+    CHANNEL_XML="
+      <sparkle:channel>${CHANNEL}</sparkle:channel>"
+fi
+
 NEW_ITEM="    <item>
       <title>Version ${VERSION}</title>
       <link>https://github.com/zepeng-jin/Cairn/releases/tag/v${VERSION}</link>
       <sparkle:version>${VERSION}</sparkle:version>
       <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>${MIN_OS}</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>${MIN_OS}</sparkle:minimumSystemVersion>${CHANNEL_XML}
       <pubDate>${PUB_DATE}</pubDate>
       <enclosure
         url=\"${DOWNLOAD_URL}\"

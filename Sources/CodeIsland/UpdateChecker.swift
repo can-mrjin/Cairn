@@ -6,7 +6,7 @@ import os.log
 
 /// Simplified update state surfaced to the About page. Sparkle handles the
 /// actual download / install UX itself — we only mirror enough state to drive
-/// the little banner at the bottom of the About page.
+/// the update card on the About page.
 enum UpdateState: Equatable {
     case idle
     case checking
@@ -20,7 +20,42 @@ final class UpdateChecker: NSObject, ObservableObject {
     static let shared = UpdateChecker()
     private static let log = Logger(subsystem: "com.codeisland", category: "UpdateChecker")
 
+    private enum DefaultsKey {
+        static let autoCheck = "updateAutomaticallyChecksForUpdates"
+        static let autoDownload = "updateAutomaticallyDownloadsUpdates"
+        static let includeBeta = "updateIncludeBetaUpdates"
+    }
+
     @Published private(set) var state: UpdateState = .idle
+    @Published private(set) var lastCheckedDate: Date?
+
+    @Published var automaticallyChecksForUpdates: Bool {
+        didSet {
+            guard oldValue != automaticallyChecksForUpdates else { return }
+            UserDefaults.standard.set(automaticallyChecksForUpdates, forKey: DefaultsKey.autoCheck)
+            if !automaticallyChecksForUpdates && automaticallyDownloadsUpdates {
+                automaticallyDownloadsUpdates = false
+            }
+            applyPreferencesToUpdater()
+        }
+    }
+
+    @Published var automaticallyDownloadsUpdates: Bool {
+        didSet {
+            guard oldValue != automaticallyDownloadsUpdates else { return }
+            UserDefaults.standard.set(automaticallyDownloadsUpdates, forKey: DefaultsKey.autoDownload)
+            applyPreferencesToUpdater()
+        }
+    }
+
+    @Published var includeBetaUpdates: Bool {
+        didSet {
+            guard oldValue != includeBetaUpdates else { return }
+            UserDefaults.standard.set(includeBetaUpdates, forKey: DefaultsKey.includeBeta)
+        }
+    }
+
+    private var isStarted = false
 
     private lazy var controller: SPUStandardUpdaterController = SPUStandardUpdaterController(
         startingUpdater: false,
@@ -49,6 +84,22 @@ final class UpdateChecker: NSObject, ObservableObject {
         return AppInstallLocation.readOnlyReason(bundlePath: bundleURL.path, volumeIsReadOnly: readOnly)
     }()
 
+    override private init() {
+        let defaults = UserDefaults.standard
+        let defaultAutoCheck = defaults.object(forKey: DefaultsKey.autoCheck) as? Bool ?? true
+        let defaultAutoDownload = defaults.object(forKey: DefaultsKey.autoDownload) as? Bool ?? true
+        let defaultIncludeBeta: Bool
+        if let explicit = defaults.object(forKey: DefaultsKey.includeBeta) as? Bool {
+            defaultIncludeBeta = explicit
+        } else {
+            defaultIncludeBeta = UpdateChannelPolicy.defaultIncludeBetaUpdates(currentVersion: AppVersion.current)
+        }
+        self.automaticallyChecksForUpdates = defaultAutoCheck
+        self.automaticallyDownloadsUpdates = defaultAutoCheck && defaultAutoDownload
+        self.includeBetaUpdates = defaultIncludeBeta
+        super.init()
+    }
+
     // MARK: - Lifecycle
 
     /// Wire up Sparkle. Call once from `AppDelegate.applicationDidFinishLaunching`.
@@ -61,20 +112,29 @@ final class UpdateChecker: NSObject, ObservableObject {
         }
         #endif
 
+        isStarted = true
+        applyPreferencesToUpdater()
+        controller.startUpdater()
+        lastCheckedDate = updater.lastUpdateCheckDate
+    }
+
+    private func applyPreferencesToUpdater() {
+        guard isStarted else { return }
         if isHomebrewInstall {
             Self.log.info("Homebrew install detected — disabling Sparkle auto-checks")
             updater.automaticallyChecksForUpdates = false
+            updater.automaticallyDownloadsUpdates = false
         } else {
-            updater.automaticallyChecksForUpdates = true
+            updater.automaticallyChecksForUpdates = automaticallyChecksForUpdates
+            updater.automaticallyDownloadsUpdates = automaticallyChecksForUpdates && automaticallyDownloadsUpdates
         }
-        controller.startUpdater()
     }
 
     // MARK: - Public API (mirrors the pre-Sparkle signature for call-site compat)
 
     /// User-initiated check. Sparkle presents its own progress / prompt UI.
     func checkForUpdates() {
-        guard updater.canCheckForUpdates else { return }
+        guard isStarted, updater.canCheckForUpdates else { return }
         state = .checking
         controller.checkForUpdates(nil)
     }
@@ -85,30 +145,54 @@ final class UpdateChecker: NSObject, ObservableObject {
     func performUpdate() {
         checkForUpdates()
     }
+
+    nonisolated private static func currentIncludeBetaPreference() -> Bool {
+        if let explicit = UserDefaults.standard.object(forKey: DefaultsKey.includeBeta) as? Bool {
+            return explicit
+        }
+        return UpdateChannelPolicy.defaultIncludeBetaUpdates(currentVersion: AppVersion.current)
+    }
 }
 
 // MARK: - SPUUpdaterDelegate
 
 extension UpdateChecker: SPUUpdaterDelegate {
+    nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        UpdateChannelPolicy.allowedChannels(includeBetaUpdates: Self.currentIncludeBetaPreference())
+    }
+
     // Sparkle dispatches delegate callbacks on an arbitrary queue; hop back
     // onto the main actor before touching @Published state.
 
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
         let version = item.displayVersionString
         Task { @MainActor in
+            self.lastCheckedDate = self.updater.lastUpdateCheckDate ?? Date()
             self.state = .available(version: version)
         }
     }
 
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
         Task { @MainActor in
+            self.lastCheckedDate = self.updater.lastUpdateCheckDate ?? Date()
             self.state = .upToDate
+        }
+    }
+
+    nonisolated func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
+        Task { @MainActor in
+            if let checkedAt = self.updater.lastUpdateCheckDate {
+                self.lastCheckedDate = checkedAt
+            }
         }
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         let description = error.localizedDescription
         Task { @MainActor in
+            if let checkedAt = self.updater.lastUpdateCheckDate {
+                self.lastCheckedDate = checkedAt
+            }
             Self.log.debug("Sparkle aborted: \(description)")
             if self.state == .checking {
                 self.state = .failed(description)

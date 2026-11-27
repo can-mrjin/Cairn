@@ -38,9 +38,9 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Cairn advertises itself on the local network so iPhone can mirror the island state.</string>
 	<key>SUAutomaticallyUpdate</key>
-	<false/>
+	<true/>
 	<key>SUEnableAutomaticChecks</key>
-	<false/>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/zepeng-jin/Cairn/main/appcast.xml</string>
 	<key>SUScheduledCheckInterval</key>
