@@ -17,7 +17,7 @@ jobs:
       - name: Download DMG from release
         run: |
           curl -L \
-            "https://github.com/zepeng-jin/Cairn/releases/download/v${VERSION}/Cairn.dmg" \
+            "https://github.com/can-mrjin/Cairn/releases/download/v${VERSION}/Cairn.dmg" \
             -o Cairn.dmg
 
       - name: Compute SHA256
@@ -26,7 +26,7 @@ jobs:
       - name: Clone homebrew-tap
         if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
         run: |
-          git clone "https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/zepeng-jin/homebrew-tap.git" homebrew-tap
+          git clone "https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/can-mrjin/homebrew-tap.git" homebrew-tap
 
       - name: Update Cask formula
         if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
@@ -37,10 +37,10 @@ jobs:
             version "VERSION_PLACEHOLDER"
             sha256 "SHA256_PLACEHOLDER"
 
-            url "https://github.com/zepeng-jin/Cairn/releases/download/v#{version}/Cairn.dmg"
+            url "https://github.com/can-mrjin/Cairn/releases/download/v#{version}/Cairn.dmg"
             name "Cairn"
             desc "macOS notch hub for AI coding agents"
-            homepage "https://github.com/zepeng-jin/Cairn"
+            homepage "https://github.com/can-mrjin/Cairn"
 
             app "Cairn.app"
 

@@ -53,7 +53,7 @@ Cairn is built on the MIT-licensed foundation of [wxtsky/CodeIsland](https://git
 - **Subagent & Task Tracking**: Nested subagent trees (including Antigravity Swarm workers) and live task checklists inside session cards, with configurable root-only alerts.
 - **Appearance & Settings**: Comfortable, Compact, and Minimal card layouts, Pure Black or translucent vibrancy surfaces, custom accent colors, and live preview in Settings.
 - **Broad Local Agent Support**: Supports Claude Code (CLI, Desktop, Cowork, 3P), Google Antigravity, Codex, Cursor, Windsurf, Gemini CLI, OpenCode, Qwen Code, Trae, Qoder, Cline, and other hook-enabled agents locally with no cloud relay or telemetry.
-- **Performance & Packaging**: Shared 20 fps animation clock with targeted redraws, macOS Apple Silicon packaging (`FlowIsland.app` / `FlowIsland.dmg`), and Sparkle update feed configured for `zepeng-jin/FlowIsland`.
+- **Performance & Packaging**: Shared 20 fps animation clock with targeted redraws, macOS Apple Silicon packaging (`FlowIsland.app` / `FlowIsland.dmg`), and Sparkle update feed configured for `can-mrjin/FlowIsland`.
 
 ### 中文
 - **刘海状态条与展开面板**：收起态展示当前活跃的 Agent 图标、实时阶段状态（思考、读取、编辑、创建、执行、搜索、委派、压缩）以及未读完成绿点，支持自定义悬停延迟与面板宽度。
@@ -62,4 +62,4 @@ Cairn is built on the MIT-licensed foundation of [wxtsky/CodeIsland](https://git
 - **子代理与任务追踪**：在会话卡片内展示嵌套子代理树（含 Antigravity Swarm 工作节点）与实时任务清单，支持仅主会话提醒。
 - **外观与设置**：提供舒适、紧凑、极简三种卡片密度，纯黑或毛玻璃材质背景，自定义主题强调色，并支持在设置页实时预览。
 - **广泛本地 Agent 支持**：本地兼容 Claude Code（CLI、Desktop、Cowork、3P）、Google Antigravity、Codex、Cursor、Windsurf、Gemini CLI、OpenCode、Qwen Code、Trae、Qoder、Cline 等基于 Hook 的工具，无云端中继与遥测。
-- **性能与打包**：采用统一 20fps 动画时钟与局部重绘，面向 macOS Apple Silicon 打包（`FlowIsland.app` / `FlowIsland.dmg`），并将 Sparkle 更新源指向 `zepeng-jin/FlowIsland`。
+- **性能与打包**：采用统一 20fps 动画时钟与局部重绘，面向 macOS Apple Silicon 打包（`FlowIsland.app` / `FlowIsland.dmg`），并将 Sparkle 更新源指向 `can-mrjin/FlowIsland`。

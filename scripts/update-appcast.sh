@@ -15,7 +15,7 @@ set -euo pipefail
 #   - A prior `swift build -c release` has populated .build/artifacts so
 #     Sparkle's sign_update binary is on disk.
 #   - The DMG is uploaded to
-#       https://github.com/zepeng-jin/Cairn/releases/download/v<version>/Cairn.dmg
+#       https://github.com/can-mrjin/Cairn/releases/download/v<version>/Cairn.dmg
 #     (the default asset URL from build-dmg.sh + `gh release create`).
 
 CHANNEL=""
@@ -58,7 +58,7 @@ fi
 # ---------------------------------------------------------------------------
 # Collect fields for the <enclosure> tag
 # ---------------------------------------------------------------------------
-DOWNLOAD_URL="https://github.com/zepeng-jin/Cairn/releases/download/v${VERSION}/Cairn.dmg"
+DOWNLOAD_URL="https://github.com/can-mrjin/Cairn/releases/download/v${VERSION}/Cairn.dmg"
 PUB_DATE="$(LC_TIME=en_US.UTF-8 date -u "+%a, %d %b %Y %H:%M:%S +0000")"
 LENGTH="$(stat -f%z "$DMG_PATH")"
 MIN_OS="14.0"
@@ -84,7 +84,7 @@ fi
 
 NEW_ITEM="    <item>
       <title>Version ${VERSION}</title>
-      <link>https://github.com/zepeng-jin/Cairn/releases/tag/v${VERSION}</link>
+      <link>https://github.com/can-mrjin/Cairn/releases/tag/v${VERSION}</link>
       <sparkle:version>${VERSION}</sparkle:version>
       <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>${MIN_OS}</sparkle:minimumSystemVersion>${CHANNEL_XML}
@@ -108,7 +108,7 @@ if [[ ! -f "$APPCAST" ]]; then
      version="2.0">
   <channel>
     <title>Cairn</title>
-    <link>https://raw.githubusercontent.com/zepeng-jin/Cairn/main/appcast.xml</link>
+    <link>https://raw.githubusercontent.com/can-mrjin/Cairn/main/appcast.xml</link>
     <description>Most recent Cairn updates</description>
     <language>en</language>
 ${NEW_ITEM}
