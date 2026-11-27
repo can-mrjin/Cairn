@@ -1,0 +1,89 @@
+# Build artifacts
+.build/
+.swiftpm/
+
+# Superpowers artifacts
+.superpowers/
+HANDOFF.md
+docs/superpowers/
+
+# macOS system files
+.DS_Store
+
+# IDE vscode/cursor
+.vscode/
+.cursor/
+xcuserdata/
+*.xcuserstate
+
+# Tmp files
+*.log
+*.tmp
+dev.sh
+
+# Non-macOS companions, hardware & local-only artifacts
+windows/
+.github/workflows/windows.yml
+ios/
+apple-companion/
+android-watch/
+hardware/
+scripts/check-companion-ui-regressions.sh
+scripts/smoke-companion.sh
+scripts/smoke-companion-ui.sh
+scripts/smoke-companion-watch-ui.sh
+docs/research-open-vibe-island.md
+CHANGES-cline.md
+docs/images/
+
+# Code agents config files
+.adal/
+.aider-desk/
+.agents/
+.augment/
+.bob/
+.claude/
+.codeartsdoer/
+.codebuddy/
+.codemaker/
+.codestudio/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.devin/
+.factory/
+.forge/
+.goose/
+.hermes/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.rovodev/
+.tabnine/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+.omg/
+.gemini/
+skills/
+skills-lock.json
+CLAUDE.md
+AGENTS.md
+build-dir/
+
+# Python bytecode from local syntax checks
+__pycache__/
+*.pyc

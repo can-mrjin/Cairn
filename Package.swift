@@ -1,0 +1,62 @@
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "CodeIsland",
+    platforms: [.macOS(.v14)],
+    dependencies: [
+        // Sparkle — auto-update framework. Pinned to 2.6+ for stable
+        // SPUStandardUpdaterController + ed25519 signature verification.
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
+    ],
+    targets: [
+        .target(
+            name: "CodeIslandCore",
+            path: "Sources/CodeIslandCore"
+        ),
+        .executableTarget(
+            name: "CodeIsland",
+            dependencies: [
+                "CodeIslandCore",
+                .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "Yams", package: "Yams"),
+            ],
+            path: "Sources/CodeIsland",
+            resources: [
+                .copy("Resources")
+            ]
+        ),
+        .executableTarget(
+            name: "codeisland-bridge",
+            dependencies: ["CodeIslandCore"],
+            path: "Sources/CodeIslandBridge"
+        ),
+        // Resets the xctest runner's shared defaults domain when a test
+        // bundle loads (see Tests/TestDefaultsReset/TestDefaultsReset.c).
+        .target(
+            name: "TestDefaultsReset",
+            path: "Tests/TestDefaultsReset"
+        ),
+        // The stand-in ancestor processes BridgeGoldenTests runs the bridge
+        // under, built next to the test bundles (never shipped).
+        .executableTarget(
+            name: "codeisland-golden-stub",
+            path: "Tests/GoldenAncestryStub"
+        ),
+        .testTarget(
+            name: "CodeIslandCoreTests",
+            dependencies: ["CodeIslandCore", "TestDefaultsReset"],
+            path: "Tests/CodeIslandCoreTests"
+        ),
+        .testTarget(
+            name: "CodeIslandTests",
+            dependencies: [
+                "CodeIsland",
+                "TestDefaultsReset",
+                .product(name: "Yams", package: "Yams"),
+            ],
+            path: "Tests/CodeIslandTests"
+        ),
+    ]
+)
