@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   update-homebrew:
+    if: ${{ github.event.release.prerelease == false }}
     runs-on: ubuntu-latest
     steps:
       - name: Extract version from tag
@@ -62,6 +63,7 @@ jobs:
           git push
 
   publish-windows:
+    if: ${{ github.event.release.prerelease == false }}
     runs-on: windows-latest
     permissions:
       contents: write
