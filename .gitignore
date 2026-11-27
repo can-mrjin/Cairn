@@ -32,7 +32,6 @@ scripts/smoke-companion-ui.sh
 scripts/smoke-companion-watch-ui.sh
 docs/research-open-vibe-island.md
 CHANGES-cline.md
-docs/images/
 
 # Code agents config files
 .adal/
