@@ -62,3 +62,37 @@ jobs:
           git add Casks/cairn.rb
           git commit -m "Update cairn to ${VERSION}"
           git push
+
+  publish-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Package Windows release
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "CodeIsland.Windows.sln")) {
+            Write-Output "windows/ not present on this tag; skipping."
+            exit 0
+          }
+          dotnet restore CodeIsland.Windows.sln
+          dotnet test CodeIsland.Core.Tests/CodeIsland.Core.Tests.csproj -c Release --no-restore
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-release.ps1
+      - name: Upload Windows assets to Release
+        if: hashFiles('windows/artifacts/*.zip') != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release upload $tag `
+            windows/artifacts/*.zip `
+            windows/artifacts/release-manifest.json `
+            --clobber
