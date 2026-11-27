@@ -32,7 +32,7 @@ public enum AgentTaskStatus: String, Codable, Sendable {
             return .status(.inProgress)
         case "completed", "complete", "done", "finished":
             return .status(.completed)
-        case "deleted", "removed", "cancelled", "canceled":
+        case "deleted", "removed", "cancelled", "canceled", "skipped":
             return .removed
         default:
             return .unknown
@@ -181,6 +181,10 @@ public enum AgentTaskEvent: Equatable, Sendable {
     /// A partial snapshot merged into the checklist by row id (Cursor
     /// `todo_write` with `merge: true`); rows it doesn't mention stay.
     case merge(opId: String?, rows: [AgentTaskRowPatch])
+    /// Advance the current snapshot plan by one step (Claude Desktop
+    /// `mcp__ccd_turn__update_plan` with `{"advance": true}`): mark the
+    /// current in-progress row completed and start the next pending row.
+    case advance(opId: String?)
 
     /// Whether this event can put rows on a list that starts out empty. A
     /// transcript whose only events are prompts, failures (any failing tool
@@ -189,7 +193,7 @@ public enum AgentTaskEvent: Equatable, Sendable {
     public var buildsList: Bool {
         switch self {
         case .create, .created, .update, .replace, .merge: return true
-        case .newTurn, .turnEnded, .createdPerText, .opFailed: return false
+        case .newTurn, .turnEnded, .createdPerText, .opFailed, .advance: return false
         }
     }
 
@@ -212,6 +216,7 @@ public enum AgentTaskEvent: Equatable, Sendable {
         case .replace(let opId, _): return opId.map { "w|\($0)" }
         // One call is either a replace or a merge, so they share the key.
         case .merge(let opId, _): return opId.map { "w|\($0)" }
+        case .advance(let opId): return opId.map { "a|\($0)" }
         }
     }
 }
@@ -401,6 +406,9 @@ public struct AgentTaskList: Sendable {
 
         case let .merge(_, rows):
             applyMerge(rows)
+
+        case .advance:
+            applyAdvance()
         }
 
         let changed = items != before
@@ -588,6 +596,19 @@ public struct AgentTaskList: Sendable {
                 activeForm: row.change.activeForm.map(Self.cleanTitle),
                 status: row.change.status ?? .pending
             ))
+        }
+    }
+
+    private mutating func applyAdvance() {
+        if let activeIndex = items.firstIndex(where: { $0.status == .inProgress }) {
+            items[activeIndex].status = .completed
+            if let nextPending = items[items.index(after: activeIndex)...].firstIndex(where: { $0.status == .pending }) {
+                items[nextPending].status = .inProgress
+            }
+            return
+        }
+        if let firstPending = items.firstIndex(where: { $0.status == .pending }) {
+            items[firstPending].status = .inProgress
         }
     }
 

@@ -32,6 +32,8 @@ enum AgentTaskTool: Equatable {
         "todowrite": .todoSnapshot,
         "writetodos": .todoSnapshot,
         "updateplan": .planSnapshot,
+        "mcpccdturnupdateplan": .planSnapshot,
+        "updatesteps": .planSnapshot,
     ]
 
     /// Events implied by a *call* of this tool (its input alone).
@@ -61,7 +63,11 @@ enum AgentTaskTool: Equatable {
             guard let drafts = AgentTaskParsing.drafts(from: input["todos"]) else { return [] }
             return [.replace(opId: opId, items: drafts)]
         case .planSnapshot:
-            guard let drafts = AgentTaskParsing.drafts(from: input["plan"]) else { return [] }
+            if AgentTaskParsing.flag(input["advance"]) {
+                return [.advance(opId: opId)]
+            }
+            let rawList = input["plan"] ?? input["items"] ?? input["steps"]
+            guard let drafts = AgentTaskParsing.drafts(from: rawList) else { return [] }
             return [.replace(opId: opId, items: drafts)]
         }
     }
@@ -294,6 +300,8 @@ public enum AgentTaskTranscript {
         case "user": return claudeUserEvents(json)
         case "response_item": return codexResponseItemEvents(json)
         case "event_msg": return codexEventMsgEvents(json)
+        case "PLANNER_RESPONSE": return antigravityPlannerEvents(json)
+        case "USER_INPUT": return [.newTurn]
         default: return []
         }
     }
@@ -407,6 +415,21 @@ public enum AgentTaskTranscript {
         }
     }
 
+    /// Antigravity `transcript_full.jsonl` planner turns carry tool invocations in
+    /// `tool_calls: [{"name": "update_steps", "args": {"steps": [...]}}]`.
+    private static func antigravityPlannerEvents(_ json: [String: Any]) -> [AgentTaskEvent] {
+        guard let toolCalls = json["tool_calls"] as? [[String: Any]] else { return [] }
+        let stepPrefix = (json["step_index"] as? NSNumber)?.stringValue
+        var events: [AgentTaskEvent] = []
+        for (idx, call) in toolCalls.enumerated() {
+            guard let tool = AgentTaskTool(toolName: call["name"] as? String) else { continue }
+            let input = AgentTaskParsing.jsonObject(call["args"] ?? call["input"]) ?? [:]
+            let opId = (call["id"] as? String) ?? stepPrefix.map { "ag:\($0):\(idx)" }
+            events.append(contentsOf: tool.callEvents(opId: opId, input: input))
+        }
+        return events
+    }
+
     // MARK: Attach-time backfill
 
     /// Result of scanning a transcript for checklist history.
@@ -483,7 +506,7 @@ public enum AgentTaskTranscript {
     /// any way `AgentTaskTool(toolName:)` accepts (`TodoWrite`, `todo_write`,
     /// `write_todos`, `todowrite`, …).
     private static func namesChecklistTool(_ ptr: UnsafePointer<UInt8>, length: Int) -> Bool {
-        let maxNameBytes = 32
+        let maxNameBytes = 64
         var offset = 0
         while offset < length {
             let found = nameMarker.withUnsafeBytes { needle in
@@ -524,6 +547,7 @@ public enum AgentTaskTranscript {
         #""type":"task_complete""#,
         #""type":"turn_aborted""#,
         #""type":"turn_failed""#,
+        #""type":"USER_INPUT""#,
     ].map { Array($0.utf8) }
     private static let claudeUserTypeMarker = Array(#""type":"user""#.utf8)
     private static let toolUseIdMarker = Array(#""tool_use_id""#.utf8)

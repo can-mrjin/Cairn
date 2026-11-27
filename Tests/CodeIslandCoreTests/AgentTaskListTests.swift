@@ -717,8 +717,67 @@ final class AgentTaskListTests: XCTestCase {
         XCTAssertEqual(AgentTaskStatus.parse(nil), .unknown)
         XCTAssertEqual(AgentTaskTool(toolName: "write_todos"), .todoSnapshot)
         XCTAssertEqual(AgentTaskTool(toolName: "todo_write"), .todoSnapshot)
+        XCTAssertEqual(AgentTaskTool(toolName: "mcp__ccd_turn__update_plan"), .planSnapshot)
+        XCTAssertEqual(AgentTaskTool(toolName: "update_steps"), .planSnapshot)
         XCTAssertNil(AgentTaskTool(toolName: "TaskGet"))
         XCTAssertNil(AgentTaskTool(toolName: "mcp__x__task_create"))
+    }
+
+    func testClaudeDesktopUpdatePlanItemsAndAdvance() {
+        let lines = [
+            claudePromptLine("Audit Chapter 4"),
+            claudeToolUseLine(
+                id: "call_1",
+                name: "mcp__ccd_turn__update_plan",
+                input: #"{"items":[{"status":"in_progress","content":"Audit data"},{"status":"pending","content":"Check baselines"},{"status":"pending","content":"Final verdict"}],"scope":"continuation"}"#
+            ),
+            claudeToolUseLine(
+                id: "call_2",
+                name: "mcp__ccd_turn__update_plan",
+                input: #"{"advance":true}"#
+            ),
+            // Duplicate call_2 (e.g. PostToolUse after PreToolUse) must not double-advance.
+            claudeToolUseLine(
+                id: "call_2",
+                name: "mcp__ccd_turn__update_plan",
+                input: #"{"advance":true}"#
+            ),
+        ]
+        let events = AgentTaskTranscript.scan(Data((lines.joined(separator: "\n") + "\n").utf8), startsAtLineBoundary: true)
+        var list = AgentTaskList()
+        list.apply(events, now: t0)
+
+        XCTAssertEqual(list.items.map(\.title), ["Audit data", "Check baselines", "Final verdict"])
+        XCTAssertEqual(list.items.map(\.status), [.completed, .inProgress, .pending])
+
+        // Advancing twice more completes the remaining items.
+        list.apply(.advance(opId: "call_3"), now: t0)
+        XCTAssertEqual(list.items.map(\.status), [.completed, .completed, .inProgress])
+        list.apply(.advance(opId: "call_4"), now: t0)
+        XCTAssertEqual(list.items.map(\.status), [.completed, .completed, .completed])
+        XCTAssertTrue(list.isAllCompleted)
+    }
+
+    func testAntigravityUpdateStepsBackfillAndNewTurnRetirement() {
+        let lines = [
+            #"{"step_index":1,"type":"USER_INPUT","text":"Optimize beta"}"#,
+            #"{"step_index":2,"type":"PLANNER_RESPONSE","tool_calls":[{"name":"update_steps","args":{"steps":[{"status":"done","title":"Create beta branch"},{"status":"in_progress","title":"Optimize timers"},{"status":"pending","title":"Push beta"},{"status":"skipped","title":"Unused step"}]}}]}"#,
+        ]
+        let events = AgentTaskTranscript.scan(Data((lines.joined(separator: "\n") + "\n").utf8), startsAtLineBoundary: true)
+        var list = AgentTaskList()
+        list.apply(events, now: t0)
+
+        XCTAssertEqual(list.items.map(\.title), ["Create beta branch", "Optimize timers", "Push beta"])
+        XCTAssertEqual(list.items.map(\.status), [.completed, .inProgress, .pending])
+
+        // All done followed by a new USER_INPUT retires the finished checklist.
+        let finishLines = [
+            #"{"step_index":3,"type":"PLANNER_RESPONSE","tool_calls":[{"name":"update_steps","args":{"steps":[{"status":"done","title":"Create beta branch"},{"status":"done","title":"Optimize timers"},{"status":"done","title":"Push beta"}]}}]}"#,
+            #"{"step_index":4,"type":"USER_INPUT","text":"Next question"}"#,
+        ]
+        let finishEvents = AgentTaskTranscript.scan(Data((finishLines.joined(separator: "\n") + "\n").utf8), startsAtLineBoundary: true)
+        list.apply(finishEvents, now: t0)
+        XCTAssertTrue(list.isEmpty)
     }
 
     // MARK: - Helpers
