@@ -22,8 +22,6 @@ xcuserdata/
 dev.sh
 
 # Non-macOS companions, hardware & local-only artifacts
-windows/
-.github/workflows/windows.yml
 ios/
 apple-companion/
 android-watch/
@@ -34,7 +32,6 @@ scripts/smoke-companion-ui.sh
 scripts/smoke-companion-watch-ui.sh
 docs/research-open-vibe-island.md
 CHANGES-cline.md
-docs/images/
 
 # Code agents config files
 .adal/
