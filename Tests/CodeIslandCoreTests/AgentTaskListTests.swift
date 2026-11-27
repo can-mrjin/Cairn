@@ -718,6 +718,7 @@ final class AgentTaskListTests: XCTestCase {
         XCTAssertEqual(AgentTaskTool(toolName: "write_todos"), .todoSnapshot)
         XCTAssertEqual(AgentTaskTool(toolName: "todo_write"), .todoSnapshot)
         XCTAssertEqual(AgentTaskTool(toolName: "mcp__ccd_turn__update_plan"), .planSnapshot)
+        XCTAssertEqual(AgentTaskTool(toolName: "mcp__ccd_turn__wrap_up"), .planWrapUp)
         XCTAssertEqual(AgentTaskTool(toolName: "update_steps"), .planSnapshot)
         XCTAssertNil(AgentTaskTool(toolName: "TaskGet"))
         XCTAssertNil(AgentTaskTool(toolName: "mcp__x__task_create"))
@@ -778,6 +779,52 @@ final class AgentTaskListTests: XCTestCase {
         let finishEvents = AgentTaskTranscript.scan(Data((finishLines.joined(separator: "\n") + "\n").utf8), startsAtLineBoundary: true)
         list.apply(finishEvents, now: t0)
         XCTAssertTrue(list.isEmpty)
+    }
+
+    func testClaudeDesktopWrapUpCompletesPlanAndNextTurnClearsIt() {
+        let lines = [
+            claudePromptLine("Make comparison figure"),
+            claudeToolUseLine(
+                id: "call_p1",
+                name: "mcp__ccd_turn__update_plan",
+                input: #"{"items":[{"status":"in_progress","content":"Write plot script"},{"status":"pending","content":"Run script and preview"}],"scope":"continuation"}"#
+            ),
+            claudeToolUseLine(
+                id: "call_p2",
+                name: "mcp__ccd_turn__update_plan",
+                input: #"{"advance":true}"#
+            ),
+            // Claude Desktop ends the turn with wrap_up instead of a final advance.
+            claudeToolUseLine(
+                id: "call_w1",
+                name: "mcp__ccd_turn__wrap_up",
+                input: #"{"recap":"Done","ask":"Next?"}"#
+            ),
+            claudePromptLine("Start a brand new topic"),
+        ]
+        let events = AgentTaskTranscript.scan(Data((lines.joined(separator: "\n") + "\n").utf8), startsAtLineBoundary: true)
+        var list = AgentTaskList()
+        list.apply(events, now: t0)
+
+        XCTAssertTrue(list.isEmpty, "wrap_up completes the snapshot plan and the next user prompt retires it immediately")
+    }
+
+    func testAbandonedClaudeSnapshotRetiresAfterUntouchedTurnsWithoutTurnEnded() {
+        let lines = [
+            claudePromptLine("First turn creates plan"),
+            claudeToolUseLine(
+                id: "call_p1",
+                name: "mcp__ccd_turn__update_plan",
+                input: #"{"items":[{"status":"in_progress","content":"Step 1"},{"status":"pending","content":"Step 2"}]}"#
+            ),
+            // User interrupts with a new topic without wrap_up: plan survives one turn
+            // in case the agent continues it, then retires once a whole turn passes untouched.
+            claudePromptLine("Unrelated second turn"),
+            claudePromptLine("Unrelated third turn"),
+        ]
+        let events = AgentTaskTranscript.scan(Data((lines.joined(separator: "\n") + "\n").utf8), startsAtLineBoundary: true)
+        let rebuilt = AgentTaskList.rebuilt(fromTranscript: events, coversWholeTranscript: true, live: AgentTaskList())
+        XCTAssertTrue(rebuilt.isEmpty, "back-to-back Claude prompts without turnEnded must still retire abandoned snapshot plans")
     }
 
     // MARK: - Helpers

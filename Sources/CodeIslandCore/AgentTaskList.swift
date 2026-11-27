@@ -185,6 +185,9 @@ public enum AgentTaskEvent: Equatable, Sendable {
     /// `mcp__ccd_turn__update_plan` with `{"advance": true}`): mark the
     /// current in-progress row completed and start the next pending row.
     case advance(opId: String?)
+    /// Mark an active snapshot plan finished when the agent explicitly wraps up
+    /// its turn (Claude Desktop `mcp__ccd_turn__wrap_up`).
+    case completeSnapshot(opId: String?)
 
     /// Whether this event can put rows on a list that starts out empty. A
     /// transcript whose only events are prompts, failures (any failing tool
@@ -193,7 +196,7 @@ public enum AgentTaskEvent: Equatable, Sendable {
     public var buildsList: Bool {
         switch self {
         case .create, .created, .update, .replace, .merge: return true
-        case .newTurn, .turnEnded, .createdPerText, .opFailed, .advance: return false
+        case .newTurn, .turnEnded, .createdPerText, .opFailed, .advance, .completeSnapshot: return false
         }
     }
 
@@ -217,6 +220,7 @@ public enum AgentTaskEvent: Equatable, Sendable {
         // One call is either a replace or a merge, so they share the key.
         case .merge(let opId, _): return opId.map { "w|\($0)" }
         case .advance(let opId): return opId.map { "a|\($0)" }
+        case .completeSnapshot(let opId): return opId.map { "x|\($0)" }
         }
     }
 }
@@ -262,6 +266,10 @@ public struct AgentTaskList: Sendable {
     /// replays one transcript: a single, ordered channel stamped
     /// `.distantPast`, where durations mean nothing.
     private var isReplaying = false
+    /// True during replay when the transcript itself emits `.turnEnded` rows
+    /// (e.g. Codex `task_complete`, which pairs `task_started` + `user_message`
+    /// as back-to-back `.newTurn` events for the same turn).
+    private var replayUsesExplicitTurnEnd = false
 
     private struct ParkedChange: Sendable {
         var opId: String?
@@ -351,16 +359,34 @@ public struct AgentTaskList: Sendable {
         let before = items
         switch event {
         case .newTurn:
+            // Transcript formats that never emit an explicit `.turnEnded` row
+            // (Claude JSONL, Antigravity) arrive as back-to-back `.newTurn`
+            // events. Treat a subsequent `.newTurn` after a real turn duration
+            // (or during single-channel replay) as closing the previous turn so
+            // an untouched snapshot plan is retired instead of sticking forever.
+            let isDistinctTurn: Bool
+            if !turnOpen {
+                isDistinctTurn = true
+            } else if isReplaying {
+                isDistinctTurn = !replayUsesExplicitTurnEnd
+            } else {
+                let elapsed = turnStartedAt.map { now.timeIntervalSince($0) } ?? .infinity
+                isDistinctTurn = elapsed >= Self.minUntouchedTurnDuration
+            }
+            if turnOpen, isDistinctTurn, !touchedThisTurn {
+                sawUntouchedTurn = true
+            }
             // A new prompt retires a finished checklist. An unfinished one is
             // normally still the agent's plan and stays — unless it is a
             // snapshot plan that a whole turn went by without updating: Codex
-            // leaves plans it abandoned half-done, and nothing else clears them.
+            // / Claude Desktop leave plans they abandoned half-done, and
+            // nothing else clears them.
             if isAllCompleted || (sawUntouchedTurn && isSnapshotList) {
                 items.removeAll()
                 parkedChanges.removeAll()
                 clearUndoJournal()
             }
-            if !turnOpen {
+            if isDistinctTurn {
                 turnOpen = true
                 turnStartedAt = now
                 touchedThisTurn = false
@@ -409,6 +435,14 @@ public struct AgentTaskList: Sendable {
 
         case .advance:
             applyAdvance()
+
+        case .completeSnapshot:
+            if isSnapshotList {
+                for index in items.indices where items[index].status != .completed {
+                    items[index].status = .completed
+                }
+            }
+            turnOpen = false
         }
 
         let changed = items != before
@@ -472,8 +506,10 @@ public struct AgentTaskList: Sendable {
             ? AgentTaskList()
             : AgentTaskList(items: live.items, completedAt: live.completedAt)
         board.isReplaying = true
+        board.replayUsesExplicitTurnEnd = events.contains(.turnEnded)
         board.apply(events, now: .distantPast)
         board.isReplaying = false
+        board.replayUsesExplicitTurnEnd = false
         return board
     }
 

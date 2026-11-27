@@ -14,6 +14,9 @@ enum AgentTaskTool: Equatable {
     case todoSnapshot
     /// Codex `update_plan {explanation?, plan: [{step, status}]}`.
     case planSnapshot
+    /// Claude Desktop `mcp__ccd_turn__wrap_up` — closes the current turn and
+    /// concludes any active `mcp__ccd_turn__update_plan` snapshot checklist.
+    case planWrapUp
 
     init?(toolName: String?) {
         guard let toolName,
@@ -33,6 +36,7 @@ enum AgentTaskTool: Equatable {
         "writetodos": .todoSnapshot,
         "updateplan": .planSnapshot,
         "mcpccdturnupdateplan": .planSnapshot,
+        "mcpccdturnwrapup": .planWrapUp,
         "updatesteps": .planSnapshot,
     ]
 
@@ -69,6 +73,8 @@ enum AgentTaskTool: Equatable {
             let rawList = input["plan"] ?? input["items"] ?? input["steps"]
             guard let drafts = AgentTaskParsing.drafts(from: rawList) else { return [] }
             return [.replace(opId: opId, items: drafts)]
+        case .planWrapUp:
+            return [.completeSnapshot(opId: opId)]
         }
     }
 
@@ -113,7 +119,7 @@ enum AgentTaskTool: Equatable {
                 expectedFrom = from
             }
             return [.update(opId: opId, taskId: taskId, change: change, expectedFrom: expectedFrom)]
-        case .todoSnapshot, .planSnapshot:
+        case .todoSnapshot, .planSnapshot, .planWrapUp:
             return callEvents(opId: opId, input: input)
         }
     }
