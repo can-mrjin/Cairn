@@ -51,6 +51,6 @@ swift build
 
 ## 开源协议与致谢
 
-本项目基于 [MIT License](LICENSE) 开源。
+本项目基于 [GNU GPL v3.0](LICENSE) 开源：任何修改或衍生版本在对外分发时均须同样以 GPL-3.0 协议开放完整源代码。
 
-衍生自 [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland)，感谢原作者 `@wxtsky` 及社区贡献者奠定的基础与多工具 Hook 生态。
+衍生自 [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland)（上游原始 MIT 版权与许可声明完整保留在 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)），感谢原作者 `@wxtsky` 及社区贡献者奠定的基础与多工具 Hook 生态。

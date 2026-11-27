@@ -51,6 +51,6 @@ To build a standalone `.app` bundle:
 
 ## License & Acknowledgements
 
-Released under the [MIT License](LICENSE).
+Released under the [GNU General Public License v3.0](LICENSE) (`GPL-3.0`). Any redistributed modifications or derivative works must also be released under GPL-3.0.
 
-Built upon [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland) — thanks to `@wxtsky` and all contributors for the original foundation and hook ecosystem.
+Built upon [wxtsky/CodeIsland](https://github.com/wxtsky/CodeIsland) (original MIT copyright notice preserved in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)) — thanks to `@wxtsky` and all contributors for the original foundation and hook ecosystem.
