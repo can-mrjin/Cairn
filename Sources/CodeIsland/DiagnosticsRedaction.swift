@@ -198,7 +198,7 @@ enum DiagnosticsRedaction {
         "termBundleId", "cmuxSurfaceId", "cmuxWorkspaceId", "zellijPaneId", "zellijSessionName",
         "weztermPaneId", "herdrPaneId", "herdrSocketPath", "herdrBinaryPath", "cliPid", "cliStartTime",
         "startTime", "lastActivity", "transcriptPath", "closedSubagentIds", "reasoningEffort",
-        "claudeDesktopSessionId", "hermesChatElsewhere", "parentSessionId",
+        "claudeDesktopSessionId", "forkedFromHostSessionId", "hermesChatElsewhere", "parentSessionId",
     ]
     /// Inside what was said (a task list, a recap): its state, kept.
     private static let nestedStructureKeys: Set<String> = ["id", "status", "state", "kind", "type", "source"]

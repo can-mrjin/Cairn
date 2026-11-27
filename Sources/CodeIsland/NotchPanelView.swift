@@ -3799,6 +3799,7 @@ private struct SessionListView: View {
     @State private var thawTask: Task<Void, Never>?
     @FocusState private var inlineSearchFocused: Bool
     @ObservedObject private var l10n = L10n.shared
+    @State private var collapsedForkParentIds: Set<String> = []
 
     private var density: SessionListDensity {
         // The completion card is one full card whatever the setting.
@@ -3869,10 +3870,33 @@ private struct SessionListView: View {
         }
     }
 
+    private func forkTreeRows(for ids: [String]) -> [SessionForkRow] {
+        guard onlySessionId == nil else {
+            return ids.enumerated().map { idx, id in
+                SessionForkRow(id: id, depth: 0, isLastSibling: idx == ids.count - 1)
+            }
+        }
+        let sessions = appState.sessions
+        return SessionForkTree.flatten(
+            ids: ids,
+            hostId: { sessions[$0]?.claudeDesktopSessionId },
+            forkedFromHostId: { sessions[$0]?.forkedFromHostSessionId },
+            collapsedParentIds: collapsedForkParentIds,
+            isActive: { id in
+                guard let status = sessions[id]?.effectiveDisplayStatus else { return false }
+                return status != .idle
+            },
+            isUnread: { appState.isSessionUnread($0) }
+        )
+    }
+
     var body: some View {
         // Compute once per render — groupedSessions, totalCount, needsScroll
         let groups = groupedSessions
-        let totalSessionCount = groups.reduce(0) { $0 + $1.ids.count }
+        let groupedRows: [(header: String, source: String?, rows: [SessionForkRow])] = groups.map {
+            ($0.header, $0.source, forkTreeRows(for: $0.ids))
+        }
+        let totalSessionCount = groupedRows.reduce(0) { $0 + $1.rows.count }
         let density = self.density
         let defaultScrollMax = SessionListMetrics.scrollHeight(maxVisibleSessions: maxVisibleSessions) - reservedHeight
         let scrollMaxHeight: CGFloat = if let availableHeight {
@@ -3905,7 +3929,7 @@ private struct SessionListView: View {
         let markedForRemoval = onlySessionId == nil
             ? appState.pendingIdleSessionRemoval?.sessionIDs ?? []
             : []
-        let flatVisibleIds = groups.flatMap(\.ids)
+        let flatVisibleIds = groupedRows.flatMap { $0.rows.map(\.id) }
         let shortcutMap: [String: Int] = Dictionary(
             uniqueKeysWithValues: flatVisibleIds.prefix(9).enumerated().map { ($0.element, $0.offset + 1) }
         )
@@ -3952,7 +3976,7 @@ private struct SessionListView: View {
                 .onAppear { inlineSearchFocused = true }
             }
 
-            ForEach(groups, id: \.header) { group in
+            ForEach(groupedRows, id: \.header) { group in
                 if !group.header.isEmpty {
                     HStack(spacing: 6) {
                         if let src = group.source, let icon = cliIcon(source: src) {
@@ -3970,10 +3994,11 @@ private struct SessionListView: View {
                     .padding(.bottom, 2)
                 }
 
-                ForEach(group.ids, id: \.self) { sessionId in
-                    if let session = appState.sessions[sessionId] {
+                ForEach(group.rows) { row in
+                    if let session = appState.sessions[row.id] {
+                        let sessionId = row.id
                         let marked = markedForRemoval.contains(sessionId)
-                        SessionCard(
+                        let card = SessionCard(
                             appState: appState,
                             sessionId: sessionId,
                             session: session,
@@ -3982,10 +4007,35 @@ private struct SessionListView: View {
                             compactProjectWidth: compactColumns.project,
                             compactStatusWidth: compactColumns.status,
                             markedForRemoval: marked,
-                            shortcutIndex: onlySessionId == nil ? shortcutMap[sessionId] : nil
+                            shortcutIndex: onlySessionId == nil ? shortcutMap[sessionId] : nil,
+                            forkBranchCount: row.descendantBranchCount,
+                            isForkBranchesCollapsed: row.isCollapsed,
+                            hasActiveForkBranch: row.hasActiveBranch,
+                            hasUnreadForkBranch: row.hasUnreadBranch,
+                            onToggleForkBranches: row.descendantBranchCount > 0 ? {
+                                withAnimation(NotchAnimation.micro) {
+                                    if collapsedForkParentIds.contains(sessionId) {
+                                        collapsedForkParentIds.remove(sessionId)
+                                    } else {
+                                        collapsedForkParentIds.insert(sessionId)
+                                    }
+                                }
+                            } : nil
                         )
                         .opacity(marked ? 0.6 : 1)
                         .accessibilityHint(marked ? Text(L10n.shared["remove_idle_sessions_marked"]) : Text(""))
+
+                        if row.depth > 0 {
+                            ForkBranchCardRow(
+                                depth: row.depth,
+                                isLastSibling: row.isLastSibling,
+                                ancestorHasMoreSiblings: row.ancestorHasMoreSiblings
+                            ) {
+                                card
+                            }
+                        } else {
+                            card
+                        }
                     }
                 }
             }
@@ -5121,6 +5171,71 @@ func approvalInlineSummary(tool: String, toolDescription: String?, toolInput: [S
     return nil
 }
 
+/// Indented tree-branch wrapper for forked Claude Desktop conversations
+/// (`(fork)` / `btw:` side-chats) nested directly beneath their parent card.
+private struct ForkBranchCardRow<Content: View>: View {
+    let depth: Int
+    let isLastSibling: Bool
+    let ancestorHasMoreSiblings: [Bool]
+    @ViewBuilder let content: () -> Content
+
+    private var indentPerLevel: CGFloat { 16 }
+
+    var body: some View {
+        let totalIndent = CGFloat(depth) * indentPerLevel
+        HStack(spacing: 0) {
+            Color.clear
+                .frame(width: totalIndent)
+                .overlay {
+                    Canvas { context, size in
+                        let stroke = Color.white.opacity(0.20)
+                        let lineWidth: CGFloat = 1.2
+                        let step = indentPerLevel
+
+                        // Ancestor continuation verticals for multi-level forks.
+                        for (level, hasMore) in ancestorHasMoreSiblings.enumerated() where hasMore {
+                            let x = CGFloat(level) * step + step * 0.55 + 6
+                            var path = Path()
+                            path.move(to: CGPoint(x: x, y: -4))
+                            path.addLine(to: CGPoint(x: x, y: size.height + 4))
+                            context.stroke(path, with: .color(stroke), lineWidth: lineWidth)
+                        }
+
+                        // Current branch connector (rounded ├ or └ into the card).
+                        let x = CGFloat(max(0, depth - 1)) * step + step * 0.55 + 6
+                        let midY = min(22, size.height * 0.5)
+                        let radius: CGFloat = 5
+                        let endX = size.width + 5
+
+                        var branch = Path()
+                        branch.move(to: CGPoint(x: x, y: -4))
+                        branch.addLine(to: CGPoint(x: x, y: midY - radius))
+                        branch.addQuadCurve(
+                            to: CGPoint(x: x + radius, y: midY),
+                            control: CGPoint(x: x, y: midY)
+                        )
+                        branch.addLine(to: CGPoint(x: endX, y: midY))
+                        context.stroke(
+                            branch,
+                            with: .color(stroke),
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+                        )
+
+                        if !isLastSibling {
+                            var tail = Path()
+                            tail.move(to: CGPoint(x: x, y: midY - radius))
+                            tail.addLine(to: CGPoint(x: x, y: size.height + 4))
+                            context.stroke(tail, with: .color(stroke), lineWidth: lineWidth)
+                        }
+                    }
+                    .allowsHitTesting(false)
+                }
+
+            content()
+        }
+    }
+}
+
 private struct SessionCard: View {
     var appState: AppState
     let sessionId: String
@@ -5134,6 +5249,12 @@ private struct SessionCard: View {
     var markedForRemoval = false
     /// 1-based quick-jump slot (`⌘1`..`⌘9`) when shown in the expanded Hub list.
     var shortcutIndex: Int? = nil
+    /// Number of visible forked child conversations nested below this card.
+    var forkBranchCount: Int = 0
+    var isForkBranchesCollapsed: Bool = false
+    var hasActiveForkBranch: Bool = false
+    var hasUnreadForkBranch: Bool = false
+    var onToggleForkBranches: (() -> Void)? = nil
     @State private var hovering = false
     @State private var failureShakeOffset: CGFloat = 0
     @State private var jumpValidationTask: Task<Void, Never>?
@@ -5403,6 +5524,41 @@ private struct SessionCard: View {
         .frame(width: 36)
     }
 
+    private func forkBranchBadge(action: @escaping () -> Void) -> some View {
+        let highlightActive = isForkBranchesCollapsed && hasActiveForkBranch
+        let highlightUnread = isForkBranchesCollapsed && !highlightActive && hasUnreadForkBranch
+        let tint: Color = highlightActive
+            ? Color(red: 0.34, green: 0.90, blue: 0.50)
+            : (highlightUnread ? Self.unreadFrameColor : .white.opacity(0.68))
+        return Button(action: action) {
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 8.5, weight: .semibold))
+                Text("\(forkBranchCount)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                Image(systemName: isForkBranchesCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 7.5, weight: .bold))
+            }
+            .foregroundStyle(tint)
+            .padding(.horizontal, 5.5)
+            .padding(.vertical, 2)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(
+                        (highlightActive || highlightUnread)
+                            ? tint.opacity(0.16)
+                            : Color.white.opacity(0.08)
+                    )
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(tint.opacity(highlightActive || highlightUnread ? 0.38 : 0.14), lineWidth: 0.6)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     /// Only show a glowing status dot when the session is actively running,
     /// waiting on the user, errored, or carries an unread reply. Idle/read
     /// sessions omit the dim grey dot so the title aligns cleanly.
@@ -5447,6 +5603,9 @@ private struct SessionCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 4) {
+                if forkBranchCount > 0, let onToggleForkBranches {
+                    forkBranchBadge(action: onToggleForkBranches)
+                }
                 SessionCardHubBadgesView(
                     isUnread: isUnread,
                     isPinned: appState.isSessionPinned(sessionId),

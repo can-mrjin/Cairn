@@ -10,6 +10,20 @@ public enum ClaudeDesktopCodeSession {
     /// Environment variable Claude Desktop sets on a Code-tab session's CLI.
     public static let hostSessionEnvKey = "CLAUDE_CODE_HOST_SESSION_ID"
 
+    /// Host-level identity and optional fork parent resolved from Claude
+    /// Desktop's on-disk `claude-code-sessions` store.
+    public struct HostSessionMetadata: Equatable, Sendable {
+        public let hostSessionId: String
+        /// Parent conversation's `local_<uuid>` when this session was forked
+        /// (including `(fork)` / `(fork N)` / `btw:` side-chats).
+        public let forkedFromHostSessionId: String?
+
+        public init(hostSessionId: String, forkedFromHostSessionId: String? = nil) {
+            self.hostSessionId = hostSessionId
+            self.forkedFromHostSessionId = forkedFromHostSessionId
+        }
+    }
+
     /// Whether `id` has the shape Claude Desktop's URL handler accepts for
     /// `?session=` — `^local_[A-Za-z0-9-]{1,64}$` (verified in the shipped app
     /// bundle, v2.9939). Anything else is refused there, so it is dropped here.
@@ -67,25 +81,20 @@ public enum ClaudeDesktopCodeSession {
         let sessionId: String?
         let cliSessionId: String?
         let priorCliSessionIds: [String]?
+        let forkedFromSessionId: String?
     }
 
-    /// Resolves Claude Desktop's own `local_<uuid>` host session id from its
-    /// on-disk `claude-code-sessions` metadata for a given CLI `sessionId`
-    /// (`cliSessionId` or `priorCliSessionIds`). Needed on Claude Desktop v6 / 3P
-    /// where `CLAUDE_CODE_HOST_SESSION_ID` is not exported into the CLI env.
+    /// Builds a lookup table mapping every recent `cliSessionId`,
+    /// `priorCliSessionIds` entry, and `local_<uuid>` host id to its
+    /// `HostSessionMetadata` (including `forkedFromHostSessionId`) in one pass.
     ///
     /// Bounded to the most recently modified metadata files (`maxFilesToInspect`)
-    /// so lookups always complete in ~1–2 ms even with hundreds of historic files.
-    public static func resolveHostSessionId(
-        forCliSessionId cliSessionId: String,
+    /// so lookups stay fast (~1–2 ms) even with hundreds of historic files.
+    public static func recentSessionMetadataIndex(
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
         fileManager: FileManager = .default,
-        maxFilesToInspect: Int = 80
-    ) -> String? {
-        let needle = cliSessionId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !needle.isEmpty else { return nil }
-        if isValidHostSessionId(needle) { return needle }
-
+        maxFilesToInspect: Int = 120
+    ) -> [String: HostSessionMetadata] {
         var candidates: [(url: URL, mtime: Date)] = []
         for root in sessionStoreRoots(home: home, fileManager: fileManager) {
             guard let accounts = try? fileManager.contentsOfDirectory(
@@ -112,20 +121,50 @@ public enum ClaudeDesktopCodeSession {
                 }
             }
         }
-        guard !candidates.isEmpty else { return nil }
+        guard !candidates.isEmpty else { return [:] }
         candidates.sort { $0.mtime > $1.mtime }
 
         let decoder = JSONDecoder()
+        var index: [String: HostSessionMetadata] = [:]
         for entry in candidates.prefix(maxFilesToInspect) {
             guard let data = try? Data(contentsOf: entry.url),
                   let record = try? decoder.decode(StoreSessionRecord.self, from: data),
                   let hostId = record.sessionId,
                   isValidHostSessionId(hostId) else { continue }
-            if record.cliSessionId == needle
-                || record.priorCliSessionIds?.contains(needle) == true {
-                return hostId
+            let forkedFrom = record.forkedFromSessionId.flatMap { isValidHostSessionId($0) ? $0 : nil }
+            let meta = HostSessionMetadata(hostSessionId: hostId, forkedFromHostSessionId: forkedFrom)
+            if index[hostId] == nil {
+                index[hostId] = meta
+            }
+            if let cliId = record.cliSessionId, !cliId.isEmpty, index[cliId] == nil {
+                index[cliId] = meta
+            }
+            for priorId in record.priorCliSessionIds ?? [] where !priorId.isEmpty {
+                if index[priorId] == nil {
+                    index[priorId] = meta
+                }
             }
         }
-        return nil
+        return index
+    }
+
+    /// Resolves Claude Desktop's own `local_<uuid>` host session id from its
+    /// on-disk `claude-code-sessions` metadata for a given CLI `sessionId`
+    /// (`cliSessionId` or `priorCliSessionIds`). Needed on Claude Desktop v6 / 3P
+    /// where `CLAUDE_CODE_HOST_SESSION_ID` is not exported into the CLI env.
+    public static func resolveHostSessionId(
+        forCliSessionId cliSessionId: String,
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default,
+        maxFilesToInspect: Int = 80
+    ) -> String? {
+        let needle = cliSessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return nil }
+        if isValidHostSessionId(needle) { return needle }
+        return recentSessionMetadataIndex(
+            home: home,
+            fileManager: fileManager,
+            maxFilesToInspect: maxFilesToInspect
+        )[needle]?.hostSessionId
     }
 }

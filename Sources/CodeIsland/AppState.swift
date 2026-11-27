@@ -1076,6 +1076,7 @@ final class AppState {
         hostHarnessProbes.removeValue(forKey: sessionId)
         hostHarnessProbeRetryAt.removeValue(forKey: sessionId)
         claudeTerminalProbes.removeValue(forKey: sessionId)
+        claudeDesktopForkProbedSessionIds.remove(sessionId)
         if activeSessionId == sessionId {
             activeSessionId = mostActiveSessionId()
         }
@@ -1404,6 +1405,14 @@ final class AppState {
     /// per process is all there is to learn.
     @ObservationIgnored
     var claudeTerminalProbes: [String: ProcessIdentity] = [:]
+    /// Local Claude sessions whose Claude Desktop host/fork metadata we already
+    /// looked up in `claude-code-sessions`.
+    @ObservationIgnored
+    var claudeDesktopForkProbedSessionIds: Set<String> = []
+    @ObservationIgnored
+    var claudeDesktopForkScanInFlight = false
+    @ObservationIgnored
+    var lastClaudeDesktopForkScanAt: Date = .distantPast
 
     /// Detect a UI harness (T3 Code) in the CLI's ancestry, off the main actor.
     /// Runs once per CLI pid; remote sessions never probe the local process table.
@@ -3634,6 +3643,7 @@ final class AppState {
             snapshot.herdrSocketPath = p.herdrSocketPath
             snapshot.herdrBinaryPath = p.herdrBinaryPath
             snapshot.claudeDesktopSessionId = p.claudeDesktopSessionId
+            snapshot.forkedFromHostSessionId = p.forkedFromHostSessionId
             snapshot.hermesChatElsewhere = p.hermesChatElsewhere ?? false
             snapshot.parentSessionId = p.parentSessionId
             snapshot.lastActivity = p.lastActivity
@@ -3696,6 +3706,7 @@ final class AppState {
                 ?? sessions.keys.sorted().first
         }
         refreshDerivedState()
+        refreshClaudeDesktopForkMetadataIfNeeded(force: true)
     }
 
     /// Idle snapshots with no live process are usually discarded on restore.
